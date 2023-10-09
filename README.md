@@ -10,6 +10,8 @@ NOTE to self: The original version of this code is from my private repo, [here](
 
 This repo also includes [`de0nano`](./de0nano/) which is a Quartus project (tested in Quartus Prime Lite Edition version 22.1.0) to wrap the main TT05 `tt_um_algofoogle_vga_spi_rom` design and test it on a DE0-Nano board. That's how I generated the photo above.
 
+NOTE: If you want to read my ramblings as I worked on this and had other thoughts, see [my journal entry about it (0155)](https://github.com/algofoogle/journal/blob/master/0155-2023-10-09.md) and perhaps trace back through older related entries.
+
 
 # What is Tiny Tapeout?
 
