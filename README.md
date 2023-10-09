@@ -8,6 +8,8 @@ This is a simple submission for Tiny Tapeout 05 (TT05) which tests reading (and 
 
 NOTE to self: The original version of this code is from my private repo, [here](https://github.com/algofoogle/sandpit/tree/master/fpga/vga_spi_rom).
 
+This repo also includes [`de0nano`](./de0nano/) which is a Quartus project (tested in Quartus Prime Lite Edition version 22.1.0) to wrap the main TT05 `tt_um_algofoogle_vga_spi_rom` design and test it on a DE0-Nano board. That's how I generated the photo above.
+
 
 # What is Tiny Tapeout?
 
