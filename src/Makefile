@@ -6,12 +6,12 @@ SIM ?= icarus
 TOPLEVEL_LANG ?= verilog
 
 VERILOG_SOURCES += $(PWD)/tb.v \
-	$(PWD)/../src/tt05_top.v \
-	$(PWD)/../src/vga_sync.v \
-	$(PWD)/../src/vga_spi_rom.v
+	$(PWD)/tt05_top.v \
+	$(PWD)/vga_sync.v \
+	$(PWD)/vga_spi_rom.v
 
-VERILOG_INCLUDE_DIRS += \
-	$(PWD)/../src
+# VERILOG_INCLUDE_DIRS += \
+# 	$(PWD)/../src
 
 # TOPLEVEL is the name of the toplevel (testbench) module in your Verilog (typically tb.v file):
 TOPLEVEL = tb
