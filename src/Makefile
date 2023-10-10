@@ -5,7 +5,7 @@
 SIM ?= icarus
 TOPLEVEL_LANG ?= verilog
 
-VERILOG_SOURCES += $(PWD)/tb.v \
+VERILOG_SOURCES += $(PWD)/tb.v $(PWD)/spiflash.v \
 	$(PWD)/tt05_top.v \
 	$(PWD)/vga_sync.v \
 	$(PWD)/vga_spi_rom.v
@@ -21,3 +21,6 @@ MODULE = test
 
 # include cocotb's make rules to take care of the simulator setup
 include $(shell cocotb-config --makefiles)/Makefile.sim
+
+show:
+	gtkwave tb.vcd tb.gtkw
