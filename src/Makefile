@@ -23,4 +23,4 @@ MODULE = test
 include $(shell cocotb-config --makefiles)/Makefile.sim
 
 show:
-	gtkwave tb.vcd tb.gtkw
+	gtkwave tb.vcd utils/tb.gtkw utils/gtkwave.ini

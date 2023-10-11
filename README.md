@@ -27,6 +27,11 @@ Tests are written with cocotb. The [`test` GitHub Action](.github/workflows/test
 6.  Optional: View the VCD file with: `make show`
 
 
+# Repo contents
+
+TBC!
+
+
 # What is Tiny Tapeout?
 
 TinyTapeout is an educational project that aims to make it easier and cheaper than ever to get your digital designs manufactured on a real chip.
