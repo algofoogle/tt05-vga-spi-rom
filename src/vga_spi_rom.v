@@ -23,10 +23,10 @@ module vga_spi_rom(
   input  wire         spi_miso
 );
 
-  localparam BUFFER_DEPTH = 128;
-  localparam PREAMBLE_LEN = 32; // 8 command bits, 24 address bits.
-  localparam STREAM_LEN = PREAMBLE_LEN+BUFFER_DEPTH; // Number of bits in our full SPI read stream.
-  localparam STORED_MODE_STATE_OFFSET = (640-1-PREAMBLE_LEN);
+  localparam        BUFFER_DEPTH = 128;
+  localparam        PREAMBLE_LEN = 32; // 8 command bits, 24 address bits.
+  localparam        STREAM_LEN = PREAMBLE_LEN+BUFFER_DEPTH; // Number of bits in our full SPI read stream.
+  localparam [9:0]  STORED_MODE_START = 448; //(640-PREAMBLE_LEN);
 
   // --- VGA sync driver: ---
   wire hsync, vsync;
@@ -47,10 +47,20 @@ module vga_spi_rom(
   // vga_sync gives active-high H/VSYNC, but VGA needs active-low, so invert:
   assign {hsync_n,vsync_n} = ~{hsync,vsync};
 
-  // Inverted clk directly drives SPI SCLK at full speed, continuously:
+  // // Inverted clk directly drives SPI SCLK at full speed, continuously:
   assign spi_sclk = ~clk; 
+  // assign spi_sclk = 1'b0;
 
-  wire stored_mode = vpos[2]==0;
+  // wire stored_mode = vpos[2]==0;  // 
+
+  // This predicts what vpos will be on the next clock cycle. We do this, so
+  // we can determine stored_mode_next, i.e. whether we are commencing a stored
+  // mode line, or a direct-to-screen line.
+  wire [9:0] vpos_next =
+    (!hmax) ? vpos:
+    (!vmax) ? vpos+1'b1:
+              10'd0;
+  wire stored_mode_next = vpos_next[2]==0;
   // Even 4-line group: stored mode: read MISO to internal memory; deferred display.
   // Odd  4-line group: direct mode: read and display MISO data directly.
 
@@ -58,12 +68,15 @@ module vga_spi_rom(
   // when we're in stored_mode:
   reg [BUFFER_DEPTH-1:0] data_buffer;
 
-  // SPI states follow hpos, with an offset during stored_mode:
-  wire [9:0] state = stored_mode ? hpos-STORED_MODE_STATE_OFFSET : hpos;
+  // SPI states follow hpos, with an offset based on stored_mode...
+  //NOTE: +1 makes our case() easier to follow with register lag considered.
+  wire [9:0] state = 
+    stored_mode_next  ? (hpos + 1'b1 - STORED_MODE_START):
+                        (hpos + 1'b1);
 
   //NOTE: posedge of SPI_SCLK, because this is where MISO remains stable...
   always @(posedge spi_sclk) begin
-    if (stored_mode) begin
+    if (stored_mode_next) begin
       if (hpos > PREAMBLE_LEN && hpos <= STREAM_LEN) begin
         // We're in the screen region where buffer needs to be displayed,
         // so shift out the bits:
@@ -76,20 +89,25 @@ module vga_spi_rom(
     end
   end
 
-
   always @(posedge clk) begin
+    // This case() controls SPI signals based on 'state' derived from horizontal
+    // pixel position (hpos), with a varying offset...
+    //
+    // In stored_mode, we react at state==0 (which is when hpos==607)
+    // by asserting /CS... just as hpos BECOMES 608 (i.e. 640-32).
+    //
+    // In direct mode, we instead react to state==800 (which is when hpos==799),
+    // because it wraps around from 799 to 0, meaning the next state after 800
+    // is 1 (skipping 0). Hence, state 800 is equivalent to state 0.
 
-    // The following case() controls signals on the SPI memory we're controlling, and the 'state' is
-    // derived from the horizontal pixel position (hpos). We alternate between that state being based
-    // on the start of each line (for direct display of MISO on-screen), and the end of each line
-    // (as HBLANK starts, when MISO is being captured in a buffer instead, for displaying
-    // as of the next line)...
-    //NOTE: Looking at the first state, if hpos==0 at the time *of the rising clock edge*,
-    // that's when the new signals (i.e. chip ON) will take effect, and that's also the moment
-    // when hpos will increment to become 1.
+    //NOTE: MOSI signals we assert here take effect on FALLING clk edge, because
+    // it is inverted to becoming the rising SCLK of the SPI memory.
+
     case (state)
-    // Command 03h (READ):
-      0:    begin spi_mosi <= 0;  spi_cs <= 1;  end // CMD[7], chip ON.
+    // Turn chip ON, and commence command 03h (READ)...
+      // stored_mode:0 and direct:800 represent the same state for CMD[7]:
+      0:    if (stored_mode_next)  begin spi_mosi <= 0;  spi_cs <= 1;  end // CMD[7], chip ON.
+      800:  if (!stored_mode_next) begin spi_mosi <= 0;  spi_cs <= 1;  end // CMD[7], chip ON.
     `ifndef MASK_REDUNDANT
       1:    begin spi_mosi <= 0;                end // CMD[6].
       2:    begin spi_mosi <= 0;                end // CMD[5].
@@ -134,10 +152,9 @@ module vga_spi_rom(
       STREAM_LEN:
             begin                 spi_cs <= 0;  end // Chip OFF.
     // Don't care about MOSI for all other states, but 0 is as fine as any:
-      default: begin spi_mosi <= 0; end
+      default: begin spi_mosi <= 0; end //SMELL: Assign 'x' instead?
     `endif
     endcase
-
   end
 
   wire blanking = ~visible;
@@ -156,13 +173,16 @@ module vga_spi_rom(
   wire even_byte = hpos[3];
 
   // Data comes from...
-  wire data =
-    stored_mode ? data_buffer[BUFFER_DEPTH-1]:  // ...memory, in stored mode.
-                  spi_miso;                     // ...chip, in direct mode.
+  wire data = (hpos >= PREAMBLE_LEN) &
+    (stored_mode_next  ? data_buffer[BUFFER_DEPTH-1]:  // ...memory, in stored mode.
+                        spi_miso);                     // ...chip, in direct mode.
 
   wire `RGB pixel_color =
-    { {3{spi_cs}}, {3{data}}, {3{~even_byte}} };
-    //{ {3{~stored_mode}}, {3{data}}, {3{~even_byte}} };
+    spi_mosi  ? 9'b000_111_000:
+                { {3{spi_cs}}, {3{data}}, {3{even_byte}} };
+    // { {3{~stored_mode}}, {3{data}}, {3{~even_byte}} };
+
+  wire dividing_line = vpos[2:0]==0;
 
   
   // wire `RGB rom_data_color = 
@@ -199,7 +219,8 @@ module vga_spi_rom(
   //                   //(vpos[1:0] == 0) ? 9'd0 : ram_data_color;
 
   assign rgb =
-    (blanking)  ? 9'b000_000_000: // Black for blanking.
-                  pixel_color;
+    (blanking)      ? 9'b000_000_000: // Black for blanking.
+    (dividing_line) ? 9'b000_000_000: // Black for dividing lines.
+                      pixel_color;
   
 endmodule
