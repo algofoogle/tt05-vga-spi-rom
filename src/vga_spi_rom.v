@@ -26,6 +26,7 @@ module vga_spi_rom(
   localparam BUFFER_DEPTH = 128;
   localparam PREAMBLE_LEN = 32; // 8 command bits, 24 address bits.
   localparam STREAM_LEN = PREAMBLE_LEN+BUFFER_DEPTH; // Number of bits in our full SPI read stream.
+  localparam STORED_MODE_STATE_OFFSET = (640-1-PREAMBLE_LEN);
 
   // --- VGA sync driver: ---
   wire hsync, vsync;
@@ -43,79 +44,52 @@ module vga_spi_rom(
     .vmax     (vmax),
     .visible  (visible)
   );
+  // vga_sync gives active-high H/VSYNC, but VGA needs active-low, so invert:
   assign {hsync_n,vsync_n} = ~{hsync,vsync};
 
-  reg byte_alt;           // Colour tint flag to make it easier to see byte boundaries on-screen.
+  // Inverted clk directly drives SPI SCLK at full speed, continuously:
+  assign spi_sclk = ~clk; 
 
-  wire clkb = ~clk;       // Inverted clock, which will be used to drive SPI slave's SCLK at full speed.
-  assign spi_sclk = clkb; // Send inverted CLK directly out as SPI SCLK continuously.
-
-  wire source_direct = vpos[2]==1; // True: Read SPI directly to screen. False: Read SPI to internal RAM, display it later.
-  // Even-numbered 4-line group; read and display MISO data directly.
-  // Odd-numbered 4-line group; read MISO data into internal memory (or a shift buffer) and display that.
-
-  // Used for sharing the main SPI state 'case', regardless of
-  // whether we are in source_direct mode (which happens from the start of the scanline),
-  // or in or storage mode (which happens from the start of HBLANK):
-  wire [9:0] hpos_in_hblank = hpos - (640-1-PREAMBLE_LEN);
-  //NOTE: -1 because we check when we're on hpos==639, knowing that it's BECOMING 640 (first HBLANK pixel).
-  //NOTE: -PREAMBLE_LEN because we start clocking out the command and address before we hit the critical
-  // point where HBLANK starts, which is when we want to start actually capturing the data.
-  // If you subtracted MORE than 32, you'd see the MISO data leak onto the screen, or (depending on the design)
-  // the contents of the buffer start to change.
-  //NOTE: By starting early, we have more time capture more data. In this case I'll just get 128 bits
-  // (though I have enough time for 160).
-
-  wire [9:0] state = source_direct ? hpos : hpos_in_hblank;
-
-
-  //===TBC...===
-  // wire stored_mode = vpos[2]==0; // True: Read SPI to internal memory, display it later. False: Read SPI directly to screen.
-  // // Manage the offset that is used (during stored_mode) for mapping hpos to SPI transaction states:
-  // reg [9:0] state_hpos_offset;
-  // always @(posedge clk) begin
-  //   if (reset) begin
-  //    ...
-  //   end
-  // end
-  // wire [9:0] state = hpos-state_hpos_offset;
-
+  wire stored_mode = vpos[2]==0;
+  // Even 4-line group: stored mode: read MISO to internal memory; deferred display.
+  // Odd  4-line group: direct mode: read and display MISO data directly.
 
   // This is the 'memory' that stores data read from SPI flash ROM,
-  // when we're NOT in source_direct mode:
+  // when we're in stored_mode:
   reg [BUFFER_DEPTH-1:0] data_buffer;
 
-  always @(negedge clk) begin //SMELL: Should we use @(posedge clkb) instead, esp. when shifting from data_buffer to screen?
-    if (!source_direct) begin
-      //NOTE: Comparisons are off by 1 because we're using NEGEDGE (i.e. after counts have already happened):
+  // SPI states follow hpos, with an offset during stored_mode:
+  wire [9:0] state = stored_mode ? hpos-STORED_MODE_STATE_OFFSET : hpos;
+
+  //NOTE: posedge of SPI_SCLK, because this is where MISO remains stable...
+  always @(posedge spi_sclk) begin
+    if (stored_mode) begin
       if (hpos > PREAMBLE_LEN && hpos <= STREAM_LEN) begin
-        if (hpos > PREAMBLE_LEN+1) begin
-          //SMELL: This extra comparison is a bit clunky. Either use a spare bit, or fix the logic
-          // to maybe happen in posedge instead of negedge (where it makes more sense).
-          //SMELL: Can/should this be done in posedge?
-          data_buffer <= {data_buffer[BUFFER_DEPTH-2:0], 1'b0};
-        end
-      end else begin
-        // ram_color_test <= 9'd0; // Turn off green haze.
-        if (hpos_in_hblank > PREAMBLE_LEN && hpos_in_hblank <= STREAM_LEN) begin
-          // Shift MISO bit into data_buffer:
-          //SMELL: Can/should this be done in posedge? Probably not, but maybe `posedge clkb`?
-          data_buffer <= {data_buffer[BUFFER_DEPTH-2:0], spi_miso};
-        end
+        // We're in the screen region where buffer needs to be displayed,
+        // so shift out the bits:
+        data_buffer <= {data_buffer[BUFFER_DEPTH-2:0], 1'b0};
+      end else if (state > PREAMBLE_LEN && state <= STREAM_LEN) begin
+        // We're in the region where bits are streaming out via MISO,
+        // so shift them in:
+        data_buffer <= {data_buffer[BUFFER_DEPTH-2:0], spi_miso};
       end
     end
   end
 
+
   always @(posedge clk) begin
 
-    // THe following case() controls signals on the SPI memory we're controlling, and the 'state' is
+    // The following case() controls signals on the SPI memory we're controlling, and the 'state' is
     // derived from the horizontal pixel position (hpos). We alternate between that state being based
     // on the start of each line (for direct display of MISO on-screen), and the end of each line
     // (as HBLANK starts, when MISO is being captured in a buffer instead, for displaying
-    // as of the next line):
+    // as of the next line)...
+    //NOTE: Looking at the first state, if hpos==0 at the time *of the rising clock edge*,
+    // that's when the new signals (i.e. chip ON) will take effect, and that's also the moment
+    // when hpos will increment to become 1.
     case (state)
     // Command 03h (READ):
-      0:    begin spi_mosi <= 0;  spi_cs <= 1;  byte_alt <= 0; end // CMD[7], chip ON.
+      0:    begin spi_mosi <= 0;  spi_cs <= 1;  end // CMD[7], chip ON.
     `ifndef MASK_REDUNDANT
       1:    begin spi_mosi <= 0;                end // CMD[6].
       2:    begin spi_mosi <= 0;                end // CMD[5].
@@ -164,52 +138,68 @@ module vga_spi_rom(
     `endif
     endcase
 
-    // Alternate byte colouring during valid byte display region:
-    if ( hpos>=PREAMBLE_LEN && 0==((hpos)&'b111) ) begin
-      byte_alt <= ~byte_alt;
-    end
-  
   end
 
   wire blanking = ~visible;
-  wire border_en = 1'b0; //(hpos=='d0 || hpos=='d639 || vpos=='d0 || vpos=='d479); // Border can help display sync.
-  
-  wire `RGB rom_data_color = 
-    {3'b000, {3{spi_mosi}}, 3'b000} | ( // Show MOSI in the green channel.
-  // Blue byte boundary: White if MISO==1, blue if 0.
-    (byte_alt==0)   ?(
-                      (spi_miso==0)?
-                      { 3'b011,         3'b000,         3'b000  }:  // Dark blue
-                      { 3'b111,         3'b100,         3'b010  }   // Sky blue
-                    ):
-  // Red byte boundary: Yellow if MISO==1, dark red if 0.
-    (spi_miso==0)   ? { 3'b000,         3'b000,         3'b011  }:  // Dark red
-                      { 3'b000,         3'b100,         3'b111  }   // Strong yellow
-  );
 
-  wire ram_bit = (vpos[1:0]==0) ? 1'b0 : data_buffer[BUFFER_DEPTH-1];
-  wire `RGB ram_data_color = 
-    {3'b000, {3{spi_mosi}}, 3'b000} | ( // Show MOSI in the green channel.
-  // Green byte boundary:
-    (byte_alt==0)   ?(
-                      (ram_bit==0)?
-                      { 3'b000,         3'b010,         3'b000  }:  // Dark green
-                      { 3'b011,         3'b101,         3'b001  }   // Bright green
-                    ):
-  // Magenta byte boundary:
-    (ram_bit==0)    ? { 3'b011,         3'b000,         3'b010  }:  // Dark purple
-                      { 3'b111,         3'b000,         3'b111  }   // Bright magenta
-  );
+  // Colour guide:
+  // -  Alternate on odd/even 'bytes'.
+  // -  Alternate on stored/direct lines.
+  // -  For RGB111 use each channel's LSB: 'Subtle' in RGB333 is bold in RGB111.
+  //    - This gives us 8 colours (inc. black/white) to work with.
+  // -  MOSI should be its own colour... always?
+  // -  Do we need to see /CS? Probably *can't* see SCLK.
 
-  // Even lines are black, so it's easier to see individual bytes:
+  // On screen, we highlight where byte boundaries would be, by alternating the
+  // background colour every 8 horizontal pixels. Hence, 'even bytes' are those
+  // where hpos[3] is clear, and 'odd' are when hpos[3] is set.
+  wire even_byte = hpos[3];
+
+  // Data comes from...
+  wire data =
+    stored_mode ? data_buffer[BUFFER_DEPTH-1]:  // ...memory, in stored mode.
+                  spi_miso;                     // ...chip, in direct mode.
+
   wire `RGB pixel_color =
-    source_direct ? rom_data_color:
-                    ram_data_color;
-                    //(vpos[1:0] == 0) ? 9'd0 : ram_data_color;
+    { {3{spi_cs}}, {3{data}}, {3{~even_byte}} };
+    //{ {3{~stored_mode}}, {3{data}}, {3{~even_byte}} };
+
+  
+  // wire `RGB rom_data_color = 
+  //   {3'b000, {3{spi_mosi}}, 3'b000} | ( // Show MOSI in the green channel.
+  // // Blue byte boundary: White if MISO==1, blue if 0.
+  //   (byte_alt==0)   ?(
+  //                     (spi_miso==0)?
+  //                     { 3'b011,         3'b000,         3'b000  }:  // Dark blue
+  //                     { 3'b111,         3'b100,         3'b010  }   // Sky blue
+  //                   ):
+  // // Red byte boundary: Yellow if MISO==1, dark red if 0.
+  //   (spi_miso==0)   ? { 3'b000,         3'b000,         3'b011  }:  // Dark red
+  //                     { 3'b000,         3'b100,         3'b111  }   // Strong yellow
+  // );
+
+  // wire ram_bit = (vpos[1:0]==0) ? 1'b0 : data_buffer[BUFFER_DEPTH-1];
+  // wire `RGB ram_data_color = 
+  //   {3'b000, {3{spi_mosi}}, 3'b000} | ( // Show MOSI in the green channel.
+  // // Green byte boundary:
+  //   (byte_alt==0)   ?(
+  //                     (ram_bit==0)?
+  //                     { 3'b000,         3'b010,         3'b000  }:  // Dark green
+  //                     { 3'b011,         3'b101,         3'b001  }   // Bright green
+  //                   ):
+  // // Magenta byte boundary:
+  //   (ram_bit==0)    ? { 3'b011,         3'b000,         3'b010  }:  // Dark purple
+  //                     { 3'b111,         3'b000,         3'b111  }   // Bright magenta
+  // );
+
+  // // Even lines are black, so it's easier to see individual bytes:
+  // wire `RGB pixel_color =
+  //   source_direct ? rom_data_color:
+  //                   ram_data_color;
+  //                   //(vpos[1:0] == 0) ? 9'd0 : ram_data_color;
 
   assign rgb =
     (blanking)  ? 9'b000_000_000: // Black for blanking.
-    (border_en) ? 9'b000_000_111: // Red for border.
-                  pixel_color; // Colour determined by bit streaming from ROM.
+                  pixel_color;
   
 endmodule
