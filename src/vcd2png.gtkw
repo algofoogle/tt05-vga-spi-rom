@@ -1,0 +1,36 @@
+[*]
+[*] GTKWave Analyzer v3.3.115 (w)1999-2023 BSI
+[*] Wed Oct 11 00:31:28 2023
+[*]
+[dumpfile] "C:\Users\Maurovics\Documents\projects\tt05-vga-spi-rom\src\tb.vcd"
+[dumpfile_mtime] "Tue Oct 10 23:37:48 2023"
+[dumpfile_size] 93989174
+[savefile] "C:\Users\Maurovics\Documents\projects\tt05-vga-spi-rom\src\vcd2png.gtkw"
+[timestart] 0
+[size] 4656 1829
+[pos] -151 -318
+*-25.000000 26480000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] tb.
+[sst_width] 49
+[signals_width] 388
+[sst_expanded] 0
+[sst_vpaned_height] 263
+@28
+tb.clk
+tb.spi_sclk
+tb.spi_cs_n
+tb.spi_mosi
+tb.spi_miso
+tb.hsync_n
+tb.vsync_n
+@88029
+[color] 1
+tb.r[2:0]
+@88028
+[color] 4
+tb.g[2:0]
+@8028
+[color] 5
+tb.b[2:0]
+[pattern_trace] 1
+[pattern_trace] 0
