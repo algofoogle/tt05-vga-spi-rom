@@ -3,10 +3,11 @@
 .vscode
 *.vcd
 runs
+src/user_config.tcl
+src/__tinytapeout
 src/sim_build
 src/__pycache__/
-src/__tinytapeout
+src/test/__pycache__/
 src/results.xml
-src/user_config.tcl
 JUNK
 *.bak

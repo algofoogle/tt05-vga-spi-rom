@@ -63,7 +63,9 @@ module tb;
 
     // This simulates the SPI flash ROM that we attach to our ASIC:
     spiflash #(
-        .FILENAME("test_rom.hex")
+        // .verbose(1), // Spew SPI debug info.
+        //SMELL: Working directory for tests is src/, not src/test/:
+        .FILENAME("test/test_rom.hex")
     ) spiflash (
         .csb(spi_cs_n),
         .clk(spi_sclk),

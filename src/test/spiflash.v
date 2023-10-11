@@ -38,7 +38,8 @@
 //
 
 module spiflash #(
-	parameter FILENAME = "firmware.hex"
+	parameter FILENAME = "firmware.hex",
+	parameter verbose = 0
 )(
 	input csb,
 	input clk,
@@ -47,7 +48,6 @@ module spiflash #(
 	inout io2,
 	inout io3
 );
-	localparam verbose = 0;
 	localparam integer latency = 8;
 	
 	reg [7:0] buffer;
@@ -106,16 +106,22 @@ module spiflash #(
 	// 16 MB (128Mb) Flash
 	reg [7:0] memory [0:16*1024*1024-1];
 
+	task print_memory_head;
+		integer mi;
+		$write("spiflash: First 32 bytes:");
+		for (mi=0; mi<32; mi=mi+1) begin
+			if (0 == mi%16) $write("\n ");
+			$write(" %02x", memory[mi]);
+		end
+		$display("");
+	endtask
+
 	initial begin
-		$display("Memory 5 bytes = 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x",
-			memory[1048576], memory[1048577], memory[1048578],
-			memory[1048579], memory[1048580]);
+		print_memory_head;	// Expected to display all 'xx' normally, because memory is not yet initialised.
 		$display("Reading %s",  FILENAME);
 		$readmemh(FILENAME, memory);
 		$display("%s loaded into memory", FILENAME);
-		$display("Memory 5 bytes = 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x",
-			memory[1048576], memory[1048577], memory[1048578],
-			memory[1048579], memory[1048580]);
+		print_memory_head;
 	end
 
 	task spi_action;
