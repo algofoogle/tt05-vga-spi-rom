@@ -57,9 +57,9 @@ module vga_spi_rom(
   // Used for sharing the main SPI state 'case', regardless of
   // whether we are in source_direct mode (which happens from the start of the scanline),
   // or in or storage mode (which happens from the start of HBLANK):
-  wire [9:0] hpos_in_hblank = hpos - (10'd640-10'd1-10'd32);
+  wire [9:0] hpos_in_hblank = hpos - (640-1-PREAMBLE_LEN);
   //NOTE: -1 because we check when we're on hpos==639, knowing that it's BECOMING 640 (first HBLANK pixel).
-  //NOTE: -32 above, because we start clocking out the command and address before we hit the critical
+  //NOTE: -PREAMBLE_LEN because we start clocking out the command and address before we hit the critical
   // point where HBLANK starts, which is when we want to start actually capturing the data.
   // If you subtracted MORE than 32, you'd see the MISO data leak onto the screen, or (depending on the design)
   // the contents of the buffer start to change.
@@ -88,8 +88,8 @@ module vga_spi_rom(
   always @(negedge clk) begin //SMELL: Should we use @(posedge clkb) instead, esp. when shifting from data_buffer to screen?
     if (!source_direct) begin
       //NOTE: Comparisons are off by 1 because we're using NEGEDGE (i.e. after counts have already happened):
-      if (hpos > 32 && hpos <= STREAM_LEN) begin
-        if (hpos > 33) begin
+      if (hpos > PREAMBLE_LEN && hpos <= STREAM_LEN) begin
+        if (hpos > PREAMBLE_LEN+1) begin
           //SMELL: This extra comparison is a bit clunky. Either use a spare bit, or fix the logic
           // to maybe happen in posedge instead of negedge (where it makes more sense).
           //SMELL: Can/should this be done in posedge?
@@ -97,7 +97,7 @@ module vga_spi_rom(
         end
       end else begin
         // ram_color_test <= 9'd0; // Turn off green haze.
-        if (hpos_in_hblank >32 && hpos_in_hblank <= STREAM_LEN) begin
+        if (hpos_in_hblank > PREAMBLE_LEN && hpos_in_hblank <= STREAM_LEN) begin
           // Shift MISO bit into data_buffer:
           //SMELL: Can/should this be done in posedge? Probably not, but maybe `posedge clkb`?
           data_buffer <= {data_buffer[BUFFER_DEPTH-2:0], spi_miso};
@@ -149,14 +149,14 @@ module vga_spi_rom(
       24:   begin spi_mosi <= vpos[6];          end // ADDR[07] <= vpos[6]
       25:   begin spi_mosi <= vpos[5];          end // ADDR[06] <= vpos[5]
       26:   begin spi_mosi <= vpos[4];          end // ADDR[05] <= vpos[4]
-      27:   begin spi_mosi <= vpos[3];          end // ADDR[04] <= vpos[3] // Lines are x8 since we discard vpos[2:0]
+      27:   begin spi_mosi <= vpos[3];          end // ADDR[04] <= vpos[3] // Lines are x8 in height since we discard vpos[2:0]
     `ifndef MASK_REDUNDANT
       28:   begin spi_mosi <= 0;                end // ADDR[03] // This and the below bits cover 0..15 bytes per line (actually 15 total by design).
       29:   begin spi_mosi <= 0;                end // ADDR[02]
       30:   begin spi_mosi <= 0;                end // ADDR[01]
       31:   begin spi_mosi <= 0;                end // ADDR[00]
     // First DATA output bit from SPI flash ROM arrives at the NEXT RISING edge of clk (i.e. the FALLING edge of spi_sclk) after 31.
-    // Turn chip off after reading and displaying 128 bits (32 bytes):
+    // Turn chip off after reading 128 bits (16 bytes):
       STREAM_LEN:
             begin                 spi_cs <= 0;  end // Chip OFF.
     // Don't care about MOSI for all other states, but 0 is as fine as any:
@@ -165,14 +165,14 @@ module vga_spi_rom(
     endcase
 
     // Alternate byte colouring during valid byte display region:
-    if ( hpos>=32 && 0==((hpos)&'b111) ) begin
+    if ( hpos>=PREAMBLE_LEN && 0==((hpos)&'b111) ) begin
       byte_alt <= ~byte_alt;
     end
   
   end
 
   wire blanking = ~visible;
-  wire border_en = (hpos=='d0 || hpos=='d639 || vpos=='d0 || vpos=='d479); // Border can help display sync.
+  wire border_en = 1'b0; //(hpos=='d0 || hpos=='d639 || vpos=='d0 || vpos=='d479); // Border can help display sync.
   
   wire `RGB rom_data_color = 
     {3'b000, {3{spi_mosi}}, 3'b000} | ( // Show MOSI in the green channel.

@@ -44,7 +44,7 @@ documentation:
     this `SCLK` output running constantly, relying on `/CS`.
 
     NOTE: Besides the main design, I've got simple loopback tests:
-    
+
     *   `TestA[5:0]` feeds a 6-input logical `AND` which outputs to `TestA_out`
     *   `TestB` feeds directly to `TestB_out`
 
@@ -74,7 +74,7 @@ documentation:
         `red`, `green`, and `blue`, each via a 330&ohm; resistor, to their respective VGA colour
         channel input pins.
     *   For a much better display, use at least an RGB222 (upper 2 bits per channel) or RGB333 DAC
-        (all 3 bits per channel), and preferably one that buffers each input.
+        (all 3 bits per channel), and preferably one that buffers each of those digital outputs.
 
   inputs:
     - 'In: MISO'
