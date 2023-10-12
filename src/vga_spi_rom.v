@@ -6,7 +6,7 @@
 // If MASK_REDUNDANT is defined, a bunch of states that are not explicitly needed are masked out.
 //NOTE: My observation has been that *including* these states may actually lead to simpler
 // logic, I suppose because the internal comparators can be simpler.
-// `define MASK_REDUNDANT
+`define MASK_REDUNDANT
 
 
 module vga_spi_rom(
@@ -142,15 +142,17 @@ module vga_spi_rom(
       25:   begin spi_mosi <= vpos[5];          end // ADDR[06] <= vpos[5]
       26:   begin spi_mosi <= vpos[4];          end // ADDR[05] <= vpos[4]
       27:   begin spi_mosi <= vpos[3];          end // ADDR[04] <= vpos[3] // Lines are x8 in height since we discard vpos[2:0]
-    `ifndef MASK_REDUNDANT
       28:   begin spi_mosi <= 0;                end // ADDR[03] // This and the below bits cover 0..15 bytes per line (actually 15 total by design).
+    `ifndef MASK_REDUNDANT
       29:   begin spi_mosi <= 0;                end // ADDR[02]
       30:   begin spi_mosi <= 0;                end // ADDR[01]
       31:   begin spi_mosi <= 0;                end // ADDR[00]
+    `endif
     // First DATA output bit from SPI flash ROM arrives at the NEXT RISING edge of clk (i.e. the FALLING edge of spi_sclk) after 31.
     // Turn chip off after reading 128 bits (16 bytes):
       STREAM_LEN:
             begin                 spi_cs <= 0;  end // Chip OFF.
+    `ifndef MASK_REDUNDANT
     // Don't care about MOSI for all other states, but 0 is as fine as any:
       default: begin spi_mosi <= 0; end //SMELL: Assign 'x' instead?
     `endif
