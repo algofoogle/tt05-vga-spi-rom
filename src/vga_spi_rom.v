@@ -6,7 +6,7 @@
 // If MASK_REDUNDANT is defined, a bunch of states that are not explicitly needed are masked out.
 //NOTE: My observation has been that *including* these states may actually lead to simpler
 // logic, I suppose because the internal comparators can be simpler.
-`define MASK_REDUNDANT
+// `define MASK_REDUNDANT
 
 
 module vga_spi_rom(
