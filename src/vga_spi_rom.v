@@ -65,10 +65,10 @@ module vga_spi_rom(
                   hpos;
 
   // This is screen-time when we'd normally be storing from MISO to buffer:
-  wire store_data_region = (hpos > STORED_MODE_HEAD+PREAMBLE_LEN && hpos <= STORED_MODE_TAIL);
+  wire store_data_region = (hpos1 >= STORED_MODE_HEAD+PREAMBLE_LEN && hpos1 < STORED_MODE_TAIL);
   // Screen-time when we'd normally display data (directly from MISO, or buffer):
-  wire paint_data_region = (hpos > PREAMBLE_LEN+1 && hpos <= STREAM_LEN+1);
-  //NOTE: +1 because we want to shift data_buffer only AFTER its MSB has been shown.
+  wire paint_data_region = (hpos1 > PREAMBLE_LEN && hpos1 <= STREAM_LEN);
+  //NOTE: 'Greater than' (+1 shift) comparison we want to shift data_buffer only AFTER its MSB has been shown.
 
   //NOTE: posedge of SPI_SCLK, because this is where MISO remains stable...
   always @(posedge spi_sclk) begin
