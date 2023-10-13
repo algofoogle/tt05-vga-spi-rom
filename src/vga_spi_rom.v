@@ -25,8 +25,6 @@ module vga_spi_rom(
   localparam        STREAM_LEN        = PREAMBLE_LEN + BUFFER_DEPTH; // Number of bits in our full SPI read stream.
   localparam [9:0]  STORED_MODE_HEAD  = 408; //(640-PREAMBLE_LEN); // Run the preamble (32bits, i.e. CMD[7:0] and ADDR[23:0]) to complete at end of 640w line.
   localparam [9:0]  STORED_MODE_TAIL  = STORED_MODE_HEAD + STREAM_LEN;
-  localparam [9:0]  DIRECT_MODE_HEAD  = 8;
-  localparam [9:0]  DIRECT_MODE_TAIL  = DIRECT_MODE_HEAD + STREAM_LEN;
 
   // --- VGA sync driver: ---
   wire hsync, vsync;
@@ -47,6 +45,8 @@ module vga_spi_rom(
   // vga_sync gives active-high H/VSYNC, but VGA needs active-low, so invert:
   assign {hsync_n,vsync_n} = ~{hsync,vsync};
 
+  wire [9:0] hpos1 = hpos-1;
+
   // Inverted clk directly drives SPI SCLK at full speed, continuously:
   assign spi_sclk = ~clk; 
 
@@ -61,13 +61,13 @@ module vga_spi_rom(
   // SPI states follow hpos, with an offset based on stored_mode...
   //NOTE: +1 makes our case() easier to follow with register lag considered.
   wire [9:0] state = 
-    stored_mode ? (hpos + 1'b1 - STORED_MODE_HEAD):
-                  (hpos + 1'b1 - DIRECT_MODE_HEAD);
+    stored_mode ? (hpos - STORED_MODE_HEAD):
+                  hpos;
 
   // This is screen-time when we'd normally be storing from MISO to buffer:
   wire store_data_region = (hpos >= STORED_MODE_HEAD+PREAMBLE_LEN && hpos < STORED_MODE_TAIL);
   // Screen-time when we'd normally display data (directly from MISO, or buffer):
-  wire paint_data_region = (hpos >= DIRECT_MODE_HEAD+PREAMBLE_LEN+1 && hpos <= DIRECT_MODE_TAIL+1);
+  wire paint_data_region = (hpos >= PREAMBLE_LEN+1 && hpos <= STREAM_LEN+1);
   //NOTE: +1 because we want to shift data_buffer only AFTER its MSB has been shown.
 
   //NOTE: posedge of SPI_SCLK, because this is where MISO remains stable...
@@ -143,7 +143,7 @@ module vga_spi_rom(
   // background colour every 8 horizontal pixels. Our first actual SPI byte
   // starts at hpos 8, because that's where we've decided to start DIRECT_MODE_HEAD.
   // Hence, 'even bytes' are those where hpos[3]==1; 'odd' when hpos[3]==0.
-  wire even_byte = hpos[3];
+  wire even_byte = hpos1[3];
 
   // Data comes from...
   wire data =
@@ -154,7 +154,7 @@ module vga_spi_rom(
     // Force green pixels during MOSI high:
     spi_mosi  ? 9'b000_111_000:
     // Else, B=/CS, G=data, R=odd/even byte.
-                { {3{spi_cs}}, {3{data}}, {3{even_byte}} };
+                { {3{spi_cs}}, {3{data}}, {3{~even_byte}} };
 
   // Dividing lines are blacked out, i.e. first line of each address line pair,
   // because they contain buffer junk, but also to make it easier to see pairs:
