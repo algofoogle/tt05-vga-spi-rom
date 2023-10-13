@@ -140,9 +140,10 @@ module vga_spi_rom(
   wire blanking = ~visible;
 
   // On screen, we highlight where byte boundaries would be, by alternating the
-  // background colour every 8 horizontal pixels. Hence, 'odd bytes' are those
-  // where hpos[3] is set, and 'even' are when hpos[3] is clear.
-  wire odd_byte = ~hpos[3]; // Inverted, because on-screen we skip the first 8 pixels.
+  // background colour every 8 horizontal pixels. Our first actual SPI byte
+  // starts at hpos 8, because that's where we've decided to start DIRECT_MODE_HEAD.
+  // Hence, 'even bytes' are those where hpos[3]==1; 'odd' when hpos[3]==0.
+  wire even_byte = hpos[3];
 
   // Data comes from...
   wire data =
@@ -153,7 +154,7 @@ module vga_spi_rom(
     // Force green pixels during MOSI high:
     spi_mosi  ? 9'b000_111_000:
     // Else, B=/CS, G=data, R=odd/even byte.
-                { {3{spi_cs}}, {3{data}}, {3{odd_byte}} };
+                { {3{spi_cs}}, {3{data}}, {3{even_byte}} };
 
   // Dividing lines are blacked out, i.e. first line of each address line pair,
   // because they contain buffer junk, but also to make it easier to see pairs:
