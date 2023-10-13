@@ -160,7 +160,10 @@ module vga_spi_rom(
   // because they contain buffer junk, but also to make it easier to see pairs:
   wire dividing_line = vpos[2:0]==0;
 
-  assign rgb =
+  reg `RGB rgb_reg;
+  assign rgb = rgb_reg;
+  always @(posedge clk)
+    rgb_reg <=
     (blanking)      ? 9'b000_000_000: // Black for blanking.
     (dividing_line) ? 9'b000_000_000: // Black for dividing lines.
                       pixel_color;
