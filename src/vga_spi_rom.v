@@ -12,19 +12,20 @@ module vga_spi_rom(
   output wire         vsync_n,
   output wire `RGB    rgb,
   // SPI ROM interface:
-  output reg          spi_cs,   //NOTE: This is active HIGH.
-  output              spi_sclk,
-  output reg          spi_mosi,
+  output wire         spi_cs, //NOTE: Active HIGH. Most chips use active LOW (csb, cs_n, ss_n, whatever). Invert as needed in parent module.
+  output wire         spi_sclk,
+  output wire         spi_mosi,
   input  wire         spi_miso
 );
 
-  localparam        BUFFER_DEPTH      = 128;
-  localparam        SPI_CMD_LEN       = 8;
-  localparam        SPI_ADDR_LEN      = 24;
-  localparam        PREAMBLE_LEN      = SPI_CMD_LEN + SPI_ADDR_LEN;
-  localparam        STREAM_LEN        = PREAMBLE_LEN + BUFFER_DEPTH; // Number of bits in our full SPI read stream.
-  localparam [9:0]  STORED_MODE_HEAD  = 408; //(640-PREAMBLE_LEN); // Run the preamble (32bits, i.e. CMD[7:0] and ADDR[23:0]) to complete at end of 640w line.
-  localparam [9:0]  STORED_MODE_TAIL  = STORED_MODE_HEAD + STREAM_LEN;
+  localparam [9:0]    BUFFER_DEPTH      = 136;                            // Number of SPI data bits to read per line. Also sets size of our storage memory.
+  localparam          BUFFER_ADDR_TOP   = $clog2(BUFFER_DEPTH)-1;         // Buffer's address MSB, i.e. index into buffer.
+  localparam [9:0]    SPI_CMD_LEN       = 8;                              // Number of bits to send first as SPI command.
+  localparam [9:0]    SPI_ADDR_LEN      = 24;                             // Number of address bits to send after SPI command.
+  localparam [9:0]    PREAMBLE_LEN      = SPI_CMD_LEN + SPI_ADDR_LEN;     // Total length of CMD+ADDR bits, before chip will start producing output data.
+  localparam [9:0]    STREAM_LEN        = PREAMBLE_LEN + BUFFER_DEPTH;    // Number of bits in our full SPI read stream.
+  localparam [9:0]    STORED_MODE_HEAD  = 416;                            // When, in VGA line, to start the 'stored mode' sequence. (640-PREAMBLE_LEN) would run preamble (32bits, CMD[7:0] + ADDR[23:0]) to complete at end of 640w line.
+  localparam [9:0]    STORED_MODE_TAIL  = STORED_MODE_HEAD + STREAM_LEN;  // When, in VGA line, to STOP the 'stored mode' sequence, to prevent buffer overrun.
 
   // --- VGA sync driver: ---
   wire hsync, vsync;
@@ -45,10 +46,11 @@ module vga_spi_rom(
   // vga_sync gives active-high H/VSYNC, but VGA needs active-low, so invert:
   assign {hsync_n,vsync_n} = ~{hsync,vsync};
 
-  wire [9:0] hpos1 = hpos-1;
-
   // Inverted clk directly drives SPI SCLK at full speed, continuously:
   assign spi_sclk = ~clk; 
+  // Why inverted? Because this allows us to set up MOSI on rising clk edge,
+  // then it's stable by the spi_sclk would subsequently rise to clock that MOSI
+  // data into the SPI chip.
 
   // Stored mode or direct mode?
   wire stored_mode = vpos[2]==0;
@@ -59,109 +61,104 @@ module vga_spi_rom(
   reg [BUFFER_DEPTH-1:0] data_buffer;
 
   // SPI states follow hpos, with an offset based on stored_mode...
-  //NOTE: +1 makes our case() easier to follow with register lag considered.
   wire [9:0] state = 
     stored_mode ? (hpos - STORED_MODE_HEAD):
                   hpos;
 
-  // This is screen-time when we'd normally be storing from MISO to buffer:
-  wire store_data_region = (hpos1 >= STORED_MODE_HEAD+PREAMBLE_LEN && hpos1 < STORED_MODE_TAIL);
-  // Screen-time when we'd normally display data (directly from MISO, or buffer):
-  wire paint_data_region = (hpos1 > PREAMBLE_LEN && hpos1 <= STREAM_LEN);
-  //NOTE: 'Greater than' (+1 shift) comparison we want to shift data_buffer only AFTER its MSB has been shown.
+  // This screen-time range is when we store from MISO to buffer:
+  wire store_data_region = (hpos >= STORED_MODE_HEAD+PREAMBLE_LEN && hpos < STORED_MODE_TAIL);
+  //NOTE: Could/should we instead use 'state'?
 
-  //NOTE: posedge of SPI_SCLK, because this is where MISO remains stable...
+  //NOTE: BEWARE: posedge of SPI_SCLK (not clk) here, because this is where MISO output is stable...
   always @(posedge spi_sclk) begin
     if (stored_mode) begin
       if (store_data_region) begin
         // Bits are streaming out via MISO, so shift them into data_buffer:
         data_buffer <= {data_buffer[BUFFER_DEPTH-2:0], spi_miso};
-      end else if (paint_data_region) begin
-        // In stored_mode, but this is the typical display region where we want
-        // to SHOW data (in this case from data_buffer): Shift out the bits:
-        data_buffer <= {data_buffer[BUFFER_DEPTH-2:0], 1'b0};
       end
     end
   end
 
-  always @(posedge clk) begin
-    // This case() controls SPI signals based on 'state' derived from horizontal
-    // pixel position (hpos), with a varying offset...
+  // Chip is ON for the whole duration of our SPI read stream:
+  assign spi_cs = state < STREAM_LEN;
 
-    // MOSI signals asserted here are sampled by SPI chip on FALLING clk edge,
-    // because it's inverted to become the rising SCLK of the SPI memory.
-
-    case (state)
-    // Turn chip ON, and commence command 03h (READ)...
-      0:    begin spi_mosi <= 0;  spi_cs <= 1;  end // CMD[7], chip ON.
-      1:    begin spi_mosi <= 0;                end // CMD[6].
-      2:    begin spi_mosi <= 0;                end // CMD[5].
-      3:    begin spi_mosi <= 0;                end // CMD[4].
-      4:    begin spi_mosi <= 0;                end // CMD[3].
-      5:    begin spi_mosi <= 0;                end // CMD[2].
-      6:    begin spi_mosi <= 1;                end // CMD[1].
-      7:    begin spi_mosi <= 1;                end // CMD[0].
-    // Address 000000h:
-      8:    begin spi_mosi <= 0;                end // ADDR[23]
-      9:    begin spi_mosi <= 0;                end // ADDR[22]
-      10:   begin spi_mosi <= 0;                end // ADDR[21]
-      11:   begin spi_mosi <= 0;                end // ADDR[20]
-      12:   begin spi_mosi <= 0;                end // ADDR[19]
-      13:   begin spi_mosi <= 0;                end // ADDR[18]
-      14:   begin spi_mosi <= 0;                end // ADDR[17]
-      15:   begin spi_mosi <= 0;                end // ADDR[16]
-      16:   begin spi_mosi <= 0;                end // ADDR[15]
-      17:   begin spi_mosi <= 0;                end // ADDR[14]
-      18:   begin spi_mosi <= 0;                end // ADDR[13]
-      19:   begin spi_mosi <= 0;                end // ADDR[12]
-      20:   begin spi_mosi <= 0;                end // ADDR[11]
-      21:   begin spi_mosi <= vpos[9];          end // ADDR[10] <= vpos[9]
-      22:   begin spi_mosi <= vpos[8];          end // ADDR[09] <= vpos[8]
-      23:   begin spi_mosi <= vpos[7];          end // ADDR[08] <= vpos[7]
-      24:   begin spi_mosi <= vpos[6];          end // ADDR[07] <= vpos[6]
-      25:   begin spi_mosi <= vpos[5];          end // ADDR[06] <= vpos[5]
-      26:   begin spi_mosi <= vpos[4];          end // ADDR[05] <= vpos[4]
-      27:   begin spi_mosi <= vpos[3];          end // ADDR[04] <= vpos[3] // Lines are x8 in height since we discard vpos[2:0]
-      28:   begin spi_mosi <= 0;                end // ADDR[03] // This and the below bits cover 0..15 bytes per line (actually 15 total by design).
-      29:   begin spi_mosi <= 0;                end // ADDR[02]
-      30:   begin spi_mosi <= 0;                end // ADDR[01]
-      31:   begin spi_mosi <= 0;                end // ADDR[00]
-    // First DATA output bit from SPI flash ROM arrives at the NEXT RISING edge of clk (i.e. the FALLING edge of spi_sclk) after 31.
-    // 32..159 is then each of 128 bits being read from SPI memory.
-    // Turn chip off after reading 128 bits (16 bytes):
-      STREAM_LEN:
-            begin                 spi_cs <= 0;  end // Chip OFF.
-    // MOSI<=0 for all other states so it can't litter display with anything else:
-      default:
-            begin spi_mosi <= 0;                end
-    endcase
-  end
-
-  wire blanking = ~visible;
+  // This is a simple way to work out what data to present at MOSI during the
+  // SPI preamble:
+  assign spi_mosi =
+    (state== 6 || state== 7)  ? 1'b1:           // CMD[1:0] is 'b11.
+    (state>=21 && state<=27)  ? vpos[30-state]: // ADDR[10:4] is vpos[9:3]
+                                1'b0;           // 0 for all other preamble bits
+                                                // and beyond.
+  // The above combo logic for spi_cs and spi_mosi gives us the following output
+  // for each 'state':
+  //
+  // | state    | spi_cs   | spi_mosi | note                              |
+  // |---------:|---------:|---------:|:----------------------------------|
+  // | (n)      | 0        | 0        | (any state not otherwise covered) |
+  // |  0       | 1        | 0        | CMD[7]; chip ON                   |
+  // |  1       | 1        | 0        | CMD[6]                            |
+  // |  2       | 1        | 0        | CMD[5]                            |
+  // |  3       | 1        | 0        | CMD[4]                            |
+  // |  4       | 1        | 0        | CMD[3]                            |
+  // |  5       | 1        | 0        | CMD[2]                            |
+  // |  6       | 1        | 1        | CMD[1]                            |
+  // |  7       | 1        | 1        | CMD[0] => CMD 03h (READ) loaded.  |
+  // |  8       | 1        | 0        | ADDR[23]                          |
+  // |  9       | 1        | 0        | ADDR[22]                          |
+  // | 10       | 1        | 0        | ADDR[21]                          |
+  // | 11       | 1        | 0        | ADDR[20]                          |
+  // | 12       | 1        | 0        | ADDR[19]                          |
+  // | 13       | 1        | 0        | ADDR[18]                          |
+  // | 14       | 1        | 0        | ADDR[17]                          |
+  // | 15       | 1        | 0        | ADDR[16]                          |
+  // | 16       | 1        | 0        | ADDR[15]                          |
+  // | 17       | 1        | 0        | ADDR[14]                          |
+  // | 18       | 1        | 0        | ADDR[13]                          |
+  // | 19       | 1        | 0        | ADDR[12]                          |
+  // | 20       | 1        | 0        | ADDR[11]                          |
+  // | 21       | 1        | vpos[9]  | ADDR[10]                          |
+  // | 22       | 1        | vpos[8]  | ADDR[9]                           |
+  // | 23       | 1        | vpos[7]  | ADDR[8]                           |
+  // | 24       | 1        | vpos[6]  | ADDR[7]                           |
+  // | 25       | 1        | vpos[5]  | ADDR[6]                           |
+  // | 26       | 1        | vpos[4]  | ADDR[5]                           |
+  // | 27       | 1        | vpos[3]  | ADDR[4]                           |
+  // | 28       | 1        | 0        | ADDR[3]                           |
+  // | 29       | 1        | 0        | ADDR[2]                           |
+  // | 30       | 1        | 0        | ADDR[1]                           |
+  // | 31       | 1        | 0        | ADDR[0]                           |
+  // | 32..159  | 1        | 0        | MOSI=dummy, MISO=read bit         |
+  // | 160      | 0        | 0        | Chip OFF                          |
 
   // On screen, we highlight where byte boundaries would be, by alternating the
-  // background colour every 8 horizontal pixels. Our first actual SPI byte
-  // starts at hpos 8, because that's where we've decided to start DIRECT_MODE_HEAD.
-  // Hence, 'even bytes' are those where hpos[3]==1; 'odd' when hpos[3]==0.
-  wire even_byte = hpos1[3];
+  // background colour every 8 horizontal pixels. 'Even bytes' are those where
+  // hpos[3]==0; 'odd' when hpos[3]==1.
+  wire odd_byte = hpos[3];
 
+  // Work out the bit index in the data_buffer shift reg for retrieval of
+  // each pixel, as relative to hpos and where we want those bits on screen:
+  wire [9:0] data_index_base = BUFFER_DEPTH+PREAMBLE_LEN-10'd1 - hpos;
+  wire [BUFFER_ADDR_TOP:0] data_index = data_index_base[BUFFER_ADDR_TOP:0]; // Enough bits to cover BUFFER_DEPTH.
   // Data comes from...
+  wire mask_stored = stored_mode && (hpos < PREAMBLE_LEN || hpos >= STREAM_LEN); //TODO: Make optional.
   wire data =
-    stored_mode ? data_buffer[BUFFER_DEPTH-1]:  // ...memory, in stored mode.
-                  spi_miso;                     // ...chip, in direct mode.
+    mask_stored ? 1'b0:                     // ...nowhere outside paint range.
+    stored_mode ? data_buffer[data_index]:  // ...memory, in stored mode.
+                  spi_miso;                 // ...chip, in direct mode.
 
   wire `RGB pixel_color =
     // Force green pixels during MOSI high:
     spi_mosi  ? 9'b000_111_000:
     // Else, B=/CS, G=data, R=odd/even byte.
-                { {3{spi_cs}}, {3{data}}, {3{~even_byte}} };
+                { {3{spi_cs}}, {3{data}}, {3{~odd_byte}} };
 
   // Dividing lines are blacked out, i.e. first line of each address line pair,
   // because they contain buffer junk, but also to make it easier to see pairs:
   wire dividing_line = vpos[2:0]==0;
 
+  // Decide what the final RGB pixel output colour is:
   assign rgb =
-    (blanking)      ? 9'b000_000_000: // Black for blanking.
+    (!visible)      ? 9'b000_000_000: // Black for blanking.
     (dividing_line) ? 9'b000_000_000: // Black for dividing lines.
                       pixel_color;
   
