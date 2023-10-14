@@ -99,12 +99,20 @@ module vga_spi_rom(
   //   (state>=PREAMBLE_LEN)     ? 1'bx:           // Don't care after preamble.
   //                               0;              // Other preamble bits must be 0.
 
-  // An alternative:
+  // // An alternative:
+  // assign spi_mosi =
+  //   (state== 6 || state== 7)  ? 1:              // CMD[1:0] is 'b11.
+  //   (state>=21 && state<=27)  ? vpos[30-state]: // ADDR[10:4] is vpos[9:3]
+  //                               0;              // 0 for all other preamble bits
+  //                                               // and beyond.
+
+  // Another alternative:
+  wire [4:0] pstate = state[4:0];
   assign spi_mosi =
-    (state== 6 || state== 7)  ? 1:              // CMD[1:0] is 'b11.
-    (state>=21 && state<=27)  ? vpos[30-state]: // ADDR[10:4] is vpos[9:3]
-                                0;              // 0 for all other preamble bits
-                                                // and beyond.
+    (pstate== 6 || pstate== 7)  ? 1:              // CMD[1:0] is 'b11.
+    (pstate>=21 && pstate<=27)  ? vpos[30-pstate]: // ADDR[10:4] is vpos[9:3]
+                                  0;              // 0 for all other preamble bits
+                                                  // and beyond.
 
   wire blanking = ~visible;
 
