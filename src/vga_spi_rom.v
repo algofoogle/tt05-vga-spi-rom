@@ -18,12 +18,12 @@ module vga_spi_rom(
   input  wire         spi_miso
 );
 
-  localparam          BUFFER_DEPTH      = 128;
-  localparam          SPI_CMD_LEN       = 8;
-  localparam          SPI_ADDR_LEN      = 24;
-  localparam          PREAMBLE_LEN      = SPI_CMD_LEN + SPI_ADDR_LEN;
-  localparam          STREAM_LEN        = PREAMBLE_LEN + BUFFER_DEPTH; // Number of bits in our full SPI read stream.
-  localparam [9:0]    STORED_MODE_HEAD  = 408; //(640-PREAMBLE_LEN); // Run the preamble (32bits, i.e. CMD[7:0] and ADDR[23:0]) to complete at end of 640w line.
+  localparam [9:0]    BUFFER_DEPTH      = 128;
+  localparam [9:0]    SPI_CMD_LEN       = 8;
+  localparam [9:0]    SPI_ADDR_LEN      = 24;
+  localparam [9:0]    PREAMBLE_LEN      = SPI_CMD_LEN + SPI_ADDR_LEN;
+  localparam [9:0]    STREAM_LEN        = PREAMBLE_LEN + BUFFER_DEPTH; // Number of bits in our full SPI read stream.
+  localparam [9:0]    STORED_MODE_HEAD  = 416; // (640-PREAMBLE_LEN) would run preamble (32bits, CMD[7:0] + ADDR[23:0]) to complete at end of 640w line.
   localparam [9:0]    STORED_MODE_TAIL  = STORED_MODE_HEAD + STREAM_LEN;
 
   // --- VGA sync driver: ---
@@ -45,8 +45,6 @@ module vga_spi_rom(
   // vga_sync gives active-high H/VSYNC, but VGA needs active-low, so invert:
   assign {hsync_n,vsync_n} = ~{hsync,vsync};
 
-  wire [9:0] hpos1 = hpos; //hpos-1;
-
   // Inverted clk directly drives SPI SCLK at full speed, continuously:
   assign spi_sclk = ~clk; 
 
@@ -65,9 +63,9 @@ module vga_spi_rom(
                   hpos;
 
   // This is screen-time when we'd normally be storing from MISO to buffer:
-  wire store_data_region = (hpos1 >= STORED_MODE_HEAD+PREAMBLE_LEN && hpos1 < STORED_MODE_TAIL);
+  wire store_data_region = (hpos >= STORED_MODE_HEAD+PREAMBLE_LEN && hpos < STORED_MODE_TAIL);
   // Screen-time when we'd normally display data (directly from MISO, or buffer):
-  wire paint_data_region = (hpos1 > PREAMBLE_LEN && hpos1 <= STREAM_LEN);
+  wire paint_data_region = (hpos > PREAMBLE_LEN && hpos <= STREAM_LEN);
   //NOTE: 'Greater than' (+1 shift) comparison we want to shift data_buffer only AFTER its MSB has been shown.
 
   //NOTE: posedge of SPI_SCLK, because this is where MISO remains stable...
@@ -99,28 +97,26 @@ module vga_spi_rom(
   //   (state>=PREAMBLE_LEN)     ? 1'bx:           // Don't care after preamble.
   //                               0;              // Other preamble bits must be 0.
 
-  // // An alternative:
+  // // An alternative, but this one is messy on the MOSI line which makes our
+  // // display really hard to interpret:
+  // wire [4:0] pstate = state[4:0];
   // assign spi_mosi =
-  //   (state== 6 || state== 7)  ? 1:              // CMD[1:0] is 'b11.
-  //   (state>=21 && state<=27)  ? vpos[30-state]: // ADDR[10:4] is vpos[9:3]
-  //                               0;              // 0 for all other preamble bits
-  //                                               // and beyond.
+  //   (pstate== 6 || pstate== 7)  ? 1:              // CMD[1:0] is 'b11.
+  //   (pstate>=21 && pstate<=27)  ? vpos[30-pstate]: // ADDR[10:4] is vpos[9:3]
+  //                                 0;              // 0 for all other preamble bits
+  //                                                 // and beyond.
 
-  // Another alternative:
-  wire [4:0] pstate = state[4:0];
+  // This alternative seems to be the simplest:
   assign spi_mosi =
-    (pstate== 6 || pstate== 7)  ? 1:              // CMD[1:0] is 'b11.
-    (pstate>=21 && pstate<=27)  ? vpos[30-pstate]: // ADDR[10:4] is vpos[9:3]
-                                  0;              // 0 for all other preamble bits
-                                                  // and beyond.
-
-  wire blanking = ~visible;
+    (state== 6 || state== 7)  ? 1'b1:           // CMD[1:0] is 'b11.
+    (state>=21 && state<=27)  ? vpos[30-state]: // ADDR[10:4] is vpos[9:3]
+                                1'b0;           // 0 for all other preamble bits
+                                                // and beyond.
 
   // On screen, we highlight where byte boundaries would be, by alternating the
-  // background colour every 8 horizontal pixels. Our first actual SPI byte
-  // starts at hpos 8, because that's where we've decided to start DIRECT_MODE_HEAD.
-  // Hence, 'even bytes' are those where hpos[3]==1; 'odd' when hpos[3]==0.
-  wire even_byte = hpos1[3];
+  // background colour every 8 horizontal pixels. 'Even bytes' are those where
+  // hpos[3]==1; 'odd' when hpos[3]==0.
+  wire even_byte = hpos[3];
 
   // Data comes from...
   wire data =
@@ -138,7 +134,7 @@ module vga_spi_rom(
   wire dividing_line = vpos[2:0]==0;
 
   assign rgb =
-    (blanking)      ? 9'b000_000_000: // Black for blanking.
+    (!visible)      ? 9'b000_000_000: // Black for blanking.
     (dividing_line) ? 9'b000_000_000: // Black for dividing lines.
                       pixel_color;
   
