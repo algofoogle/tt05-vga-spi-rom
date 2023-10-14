@@ -65,12 +65,12 @@ module vga_spi_rom(
                   hpos;
 
   // This screen-time range is when we store from MISO to buffer:
-  wire store_data_region = (state >= PREAMBLE_LEN && state < STREAM_LEN);
+  wire store_data_region = (hpos >= STORED_MODE_HEAD+PREAMBLE_LEN && hpos < STORED_MODE_TAIL);
   //NOTE: Could/should we instead use 'state'?
 
-  // This screen-time range is when we display data (MISO direct, or from buffer):
-  wire paint_data_region = (hpos > PREAMBLE_LEN && hpos <= STREAM_LEN);
-  //NOTE: '>', not '>=' (i.e. +1 shift) as we want to shift data_buffer only AFTER its MSB has been shown.
+  // // This screen-time range is when we display data (MISO direct, or from buffer):
+  // wire paint_data_region = (hpos > PREAMBLE_LEN && hpos <= STREAM_LEN);
+  // //NOTE: '>', not '>=' (i.e. +1 shift) as we want to shift data_buffer only AFTER its MSB has been shown.
 
   //NOTE: BEWARE: posedge of SPI_SCLK (not clk) here, because this is where MISO output is stable...
   always @(posedge spi_sclk) begin
@@ -78,10 +78,6 @@ module vga_spi_rom(
       if (store_data_region) begin
         // Bits are streaming out via MISO, so shift them into data_buffer:
         data_buffer <= {data_buffer[BUFFER_DEPTH-2:0], spi_miso};
-      end else if (paint_data_region) begin
-        // In stored_mode, but this is the typical display region where we want
-        // to SHOW data (in this case from data_buffer): Shift out the bits:
-        data_buffer <= {data_buffer[BUFFER_DEPTH-2:0], 1'b0};
       end
     end
   end
@@ -143,9 +139,11 @@ module vga_spi_rom(
   wire odd_byte = hpos[3];
 
   // Data comes from...
+  wire [9:0] data_index_base = hpos-PREAMBLE_LEN;
+  wire [6:0] data_index = ~data_index_base[6:0];
   wire data =
-    stored_mode ? data_buffer[BUFFER_DEPTH-1]:  // ...memory, in stored mode.
-                  spi_miso;                     // ...chip, in direct mode.
+    stored_mode ? data_buffer[data_index]:  // ...memory, in stored mode.
+                  spi_miso;                 // ...chip, in direct mode.
 
   wire `RGB pixel_color =
     // Force green pixels during MOSI high:
