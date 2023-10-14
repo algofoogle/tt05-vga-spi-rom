@@ -18,7 +18,7 @@ module vga_spi_rom(
   input  wire         spi_miso
 );
 
-  localparam [9:0]    BUFFER_DEPTH      = 256;                            // Number of SPI data bits to read per line. Also sets size of our storage memory.
+  localparam [9:0]    BUFFER_DEPTH      = 128;                            // Number of SPI data bits to read per line. Also sets size of our storage memory.
   localparam [9:0]    SPI_CMD_LEN       = 8;                              // Number of bits to send first as SPI command.
   localparam [9:0]    SPI_ADDR_LEN      = 24;                             // Number of address bits to send after SPI command.
   localparam [9:0]    PREAMBLE_LEN      = SPI_CMD_LEN + SPI_ADDR_LEN;     // Total length of CMD+ADDR bits, before chip will start producing output data.
@@ -67,10 +67,6 @@ module vga_spi_rom(
   // This screen-time range is when we store from MISO to buffer:
   wire store_data_region = (hpos >= STORED_MODE_HEAD+PREAMBLE_LEN && hpos < STORED_MODE_TAIL);
   //NOTE: Could/should we instead use 'state'?
-
-  // // This screen-time range is when we display data (MISO direct, or from buffer):
-  // wire paint_data_region = (hpos > PREAMBLE_LEN && hpos <= STREAM_LEN);
-  // //NOTE: '>', not '>=' (i.e. +1 shift) as we want to shift data_buffer only AFTER its MSB has been shown.
 
   //NOTE: BEWARE: posedge of SPI_SCLK (not clk) here, because this is where MISO output is stable...
   always @(posedge spi_sclk) begin
@@ -138,9 +134,11 @@ module vga_spi_rom(
   // hpos[3]==0; 'odd' when hpos[3]==1.
   wire odd_byte = hpos[3];
 
+  // Work out the bit index in the data_buffer shift reg for retrieval of
+  // each pixel, as relative to hpos and where we want those bits on screen:
+  wire [9:0] data_index_base = BUFFER_DEPTH+PREAMBLE_LEN-1 - hpos;
+  wire [6:0] data_index = data_index_base[6:0]; // Needs to be enough bits to cover BUFFER_DEPTH.
   // Data comes from...
-  wire [9:0] data_index_base = hpos-PREAMBLE_LEN;
-  wire [7:0] data_index = ~data_index_base[7:0]; // Needs to be enough bits to cover BUFFER_DEPTH.
   wire data =
     stored_mode ? data_buffer[data_index]:  // ...memory, in stored mode.
                   spi_miso;                 // ...chip, in direct mode.
