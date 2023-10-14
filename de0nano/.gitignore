@@ -5,7 +5,7 @@
 *.jdi
 *.bak
 *.qws
-
+greybox_tmp/
 db/
 incremental_db/
 output_files/

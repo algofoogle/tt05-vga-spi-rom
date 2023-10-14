@@ -16,6 +16,18 @@ module de0nano_top(
   input   [1:0]   gpio1_IN  // GPIO1 input-only pins
 );
 
+  wire clock_35p5;
+
+  // Quartus-generated PLL module, created using this guide:
+  // https://www.ece.ucdavis.edu/~bbaas/180/tutorials/using.a.PLL.pdf
+  // This PLL is configured to take in our 50MHz clock and produce
+  // a 35.5MHz clock (clock_35p5):
+  pll	pll_inst (
+    .inclk0 (CLOCK_50),
+    .c0     (clock_35p5)
+  );
+
+
   // K4..K1 external buttons board (K4 is top, K1 is bottom):
   //NOTE: These buttons are active LOW, so we invert them here to make them active HIGH:
   // wire [4:1] K = ~{gpio1[23], gpio1[21], gpio1[19], gpio1[17]};
@@ -88,8 +100,9 @@ module de0nano_top(
 
   //SMELL: This is a bad way to do clock dividing.
   // Can we instead use the built-in FPGA clock divider?
-  reg clock_25; // VGA pixel clock of 25MHz is good enough. 25.175MHz is ideal (640x480x59.94)
-  always @(posedge CLOCK_50) clock_25 <= ~clock_25;
+  // reg clock_25; // VGA pixel clock of 25MHz is good enough. 25.175MHz is ideal (640x480x59.94)
+  // always @(posedge clock_35p5) clock_25 <= ~clock_25;
+  wire clock_25 = clock_35p5;
 
   // These are not specifically being tested at this stage:
   wire [5:0]  TestA = 6'b111111;

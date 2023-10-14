@@ -24,7 +24,7 @@ module vga_spi_rom(
   localparam [9:0]    SPI_ADDR_LEN      = 24;                             // Number of address bits to send after SPI command.
   localparam [9:0]    PREAMBLE_LEN      = SPI_CMD_LEN + SPI_ADDR_LEN;     // Total length of CMD+ADDR bits, before chip will start producing output data.
   localparam [9:0]    STREAM_LEN        = PREAMBLE_LEN + BUFFER_DEPTH;    // Number of bits in our full SPI read stream.
-  localparam [9:0]    STORED_MODE_HEAD  = 416;                            // When, in VGA line, to start the 'stored mode' sequence. (640-PREAMBLE_LEN) would run preamble (32bits, CMD[7:0] + ADDR[23:0]) to complete at end of 640w line.
+  localparam [9:0]    STORED_MODE_HEAD  = 192;                            // When, in VGA line, to start the 'stored mode' sequence. (640-PREAMBLE_LEN) would run preamble (32bits, CMD[7:0] + ADDR[23:0]) to complete at end of 640w line.
   localparam [9:0]    STORED_MODE_TAIL  = STORED_MODE_HEAD + STREAM_LEN;  // When, in VGA line, to STOP the 'stored mode' sequence, to prevent buffer overrun.
 
   // --- VGA sync driver: ---

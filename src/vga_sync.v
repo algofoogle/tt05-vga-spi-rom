@@ -2,19 +2,19 @@
 `timescale 1ns / 1ps
 
 module vga_sync #(
-  // 800 clocks wide:
-  parameter H_VIEW        = 640,   // Visible area comes first...
-  parameter H_FRONT       =  16,   // ...then HBLANK starts with H_FRONT (RHS border)...
-  parameter H_SYNC        =  96,   // ...then sync pulse starts...
-  parameter H_BACK        =  48,   // ...then remainder of HBLANK (LHS border).
+  // 476 clocks wide:
+  parameter H_VIEW        = 360,   // 1440/3 // Visible area comes first...
+  parameter H_FRONT       =  20,   // 80/3   // ...then HBLANK starts with H_FRONT (RHS border)...
+  parameter H_SYNC        =  38,   // 152/3  // ...then sync pulse starts...
+  parameter H_BACK        =  58,   // ~232/3  // ...then remainder of HBLANK (LHS border).
   parameter H_MAX         = H_VIEW + H_FRONT + H_SYNC + H_BACK - 1,
   parameter H_SYNC_START  = H_VIEW + H_FRONT,
   parameter H_SYNC_END    = H_SYNC_START + H_SYNC,
   // 525 lines tall:
-  parameter V_VIEW        = 480,
-  parameter V_FRONT       =  10,
-  parameter V_SYNC        =   2,
-  parameter V_BACK        =  33,
+  parameter V_VIEW        = 900,
+  parameter V_FRONT       =   1,
+  parameter V_SYNC        =   3,
+  parameter V_BACK        =  28,
   parameter V_MAX         = V_VIEW + V_FRONT + V_SYNC + V_BACK - 1,
   parameter V_SYNC_START  = V_VIEW + V_FRONT,
   parameter V_SYNC_END    = V_SYNC_START + V_SYNC
