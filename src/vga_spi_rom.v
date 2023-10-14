@@ -90,21 +90,21 @@ module vga_spi_rom(
   // MOSI depends on a CMD/ADDR 32-bit sequence.
   //NOTE: This could be stored in a vector that we shift (or index),
   // or a case(), or could be a memory array.
-  assign spi_mosi =
-    (state<  6)               ? 1'b0:           // CMD[7:2] is 'b000000.
-    (state== 6 || state== 7)  ? 1'b1:           // CMD[1:0] is 'b11.
-                              //ADDR[23:11] is 0.
-    (state>=21 && state<=27)  ? vpos[30-state]: // ADDR[10:4] is vpos[9:3]
-                              //ADDR[3:0] is 0.
-    (state>=PREAMBLE_LEN)     ? 1'bx:           // Don't care after preamble.
-                                0;              // Other preamble bits must be 0.
+  // assign spi_mosi =
+  //   (state<  6)               ? 1'b0:           // CMD[7:2] is 'b000000.
+  //   (state== 6 || state== 7)  ? 1'b1:           // CMD[1:0] is 'b11.
+  //                             //ADDR[23:11] is 0.
+  //   (state>=21 && state<=27)  ? vpos[30-state]: // ADDR[10:4] is vpos[9:3]
+  //                             //ADDR[3:0] is 0.
+  //   (state>=PREAMBLE_LEN)     ? 1'bx:           // Don't care after preamble.
+  //                               0;              // Other preamble bits must be 0.
 
   // An alternative:
-  // assign spi_mosi =
-  //   (state== 6 || state== 7)  ? 1:              // CMD[1:0] is 'b11.
-  //   (state>=21 && state<=27)  ? vpos[30-state]: // ADDR[10:4] is vpos[9:3]
-  //                               0;              // 0 for all other preamble bits
-  //                                               // and beyond.
+  assign spi_mosi =
+    (state== 6 || state== 7)  ? 1:              // CMD[1:0] is 'b11.
+    (state>=21 && state<=27)  ? vpos[30-state]: // ADDR[10:4] is vpos[9:3]
+                                0;              // 0 for all other preamble bits
+                                                // and beyond.
 
   wire blanking = ~visible;
 
