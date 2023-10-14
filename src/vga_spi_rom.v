@@ -12,19 +12,19 @@ module vga_spi_rom(
   output wire         vsync_n,
   output wire `RGB    rgb,
   // SPI ROM interface:
-  output reg          spi_cs,   //NOTE: This is active HIGH.
-  output              spi_sclk,
-  output reg          spi_mosi,
+  output wire         spi_cs,   //NOTE: This is active HIGH.
+  output wire         spi_sclk,
+  output wire         spi_mosi,
   input  wire         spi_miso
 );
 
-  localparam        BUFFER_DEPTH      = 128;
-  localparam        SPI_CMD_LEN       = 8;
-  localparam        SPI_ADDR_LEN      = 24;
-  localparam        PREAMBLE_LEN      = SPI_CMD_LEN + SPI_ADDR_LEN;
-  localparam        STREAM_LEN        = PREAMBLE_LEN + BUFFER_DEPTH; // Number of bits in our full SPI read stream.
-  localparam [9:0]  STORED_MODE_HEAD  = 408; //(640-PREAMBLE_LEN); // Run the preamble (32bits, i.e. CMD[7:0] and ADDR[23:0]) to complete at end of 640w line.
-  localparam [9:0]  STORED_MODE_TAIL  = STORED_MODE_HEAD + STREAM_LEN;
+  localparam          BUFFER_DEPTH      = 128;
+  localparam          SPI_CMD_LEN       = 8;
+  localparam          SPI_ADDR_LEN      = 24;
+  localparam          PREAMBLE_LEN      = SPI_CMD_LEN + SPI_ADDR_LEN;
+  localparam          STREAM_LEN        = PREAMBLE_LEN + BUFFER_DEPTH; // Number of bits in our full SPI read stream.
+  localparam [9:0]    STORED_MODE_HEAD  = 408; //(640-PREAMBLE_LEN); // Run the preamble (32bits, i.e. CMD[7:0] and ADDR[23:0]) to complete at end of 640w line.
+  localparam [9:0]    STORED_MODE_TAIL  = STORED_MODE_HEAD + STREAM_LEN;
 
   // --- VGA sync driver: ---
   wire hsync, vsync;
@@ -45,7 +45,7 @@ module vga_spi_rom(
   // vga_sync gives active-high H/VSYNC, but VGA needs active-low, so invert:
   assign {hsync_n,vsync_n} = ~{hsync,vsync};
 
-  wire [9:0] hpos1 = hpos-1;
+  wire [9:0] hpos1 = hpos; //hpos-1;
 
   // Inverted clk directly drives SPI SCLK at full speed, continuously:
   assign spi_sclk = ~clk; 
@@ -84,58 +84,27 @@ module vga_spi_rom(
     end
   end
 
-  always @(posedge clk) begin
-    // This case() controls SPI signals based on 'state' derived from horizontal
-    // pixel position (hpos), with a varying offset...
+  // Chip is ON for the whole duration of our SPI read stream:
+  assign spi_cs = state < STREAM_LEN;
 
-    // MOSI signals asserted here are sampled by SPI chip on FALLING clk edge,
-    // because it's inverted to become the rising SCLK of the SPI memory.
+  // MOSI depends on a CMD/ADDR 32-bit sequence.
+  //NOTE: This could be stored in a vector that we shift (or index),
+  // or a case(), or could be a memory array.
+  assign spi_mosi =
+    (state<  6)               ? 1'b0:           // CMD[7:2] is 'b000000.
+    (state== 6 || state== 7)  ? 1'b1:           // CMD[1:0] is 'b11.
+                              //ADDR[23:11] is 0.
+    (state>=21 && state<=27)  ? vpos[30-state]: // ADDR[10:4] is vpos[9:3]
+                              //ADDR[3:0] is 0.
+    (state>=PREAMBLE_LEN)     ? 1'bx:           // Don't care after preamble.
+                                0;              // Other preamble bits must be 0.
 
-    case (state)
-    // Turn chip ON, and commence command 03h (READ)...
-      0:    begin spi_mosi <= 0;  spi_cs <= 1;  end // CMD[7], chip ON.
-      1:    begin spi_mosi <= 0;                end // CMD[6].
-      2:    begin spi_mosi <= 0;                end // CMD[5].
-      3:    begin spi_mosi <= 0;                end // CMD[4].
-      4:    begin spi_mosi <= 0;                end // CMD[3].
-      5:    begin spi_mosi <= 0;                end // CMD[2].
-      6:    begin spi_mosi <= 1;                end // CMD[1].
-      7:    begin spi_mosi <= 1;                end // CMD[0].
-    // Address 000000h:
-      8:    begin spi_mosi <= 0;                end // ADDR[23]
-      9:    begin spi_mosi <= 0;                end // ADDR[22]
-      10:   begin spi_mosi <= 0;                end // ADDR[21]
-      11:   begin spi_mosi <= 0;                end // ADDR[20]
-      12:   begin spi_mosi <= 0;                end // ADDR[19]
-      13:   begin spi_mosi <= 0;                end // ADDR[18]
-      14:   begin spi_mosi <= 0;                end // ADDR[17]
-      15:   begin spi_mosi <= 0;                end // ADDR[16]
-      16:   begin spi_mosi <= 0;                end // ADDR[15]
-      17:   begin spi_mosi <= 0;                end // ADDR[14]
-      18:   begin spi_mosi <= 0;                end // ADDR[13]
-      19:   begin spi_mosi <= 0;                end // ADDR[12]
-      20:   begin spi_mosi <= 0;                end // ADDR[11]
-      21:   begin spi_mosi <= vpos[9];          end // ADDR[10] <= vpos[9]
-      22:   begin spi_mosi <= vpos[8];          end // ADDR[09] <= vpos[8]
-      23:   begin spi_mosi <= vpos[7];          end // ADDR[08] <= vpos[7]
-      24:   begin spi_mosi <= vpos[6];          end // ADDR[07] <= vpos[6]
-      25:   begin spi_mosi <= vpos[5];          end // ADDR[06] <= vpos[5]
-      26:   begin spi_mosi <= vpos[4];          end // ADDR[05] <= vpos[4]
-      27:   begin spi_mosi <= vpos[3];          end // ADDR[04] <= vpos[3] // Lines are x8 in height since we discard vpos[2:0]
-      28:   begin spi_mosi <= 0;                end // ADDR[03] // This and the below bits cover 0..15 bytes per line (actually 15 total by design).
-      29:   begin spi_mosi <= 0;                end // ADDR[02]
-      30:   begin spi_mosi <= 0;                end // ADDR[01]
-      31:   begin spi_mosi <= 0;                end // ADDR[00]
-    // First DATA output bit from SPI flash ROM arrives at the NEXT RISING edge of clk (i.e. the FALLING edge of spi_sclk) after 31.
-    // 32..159 is then each of 128 bits being read from SPI memory.
-    // Turn chip off after reading 128 bits (16 bytes):
-      STREAM_LEN:
-            begin                 spi_cs <= 0;  end // Chip OFF.
-    // MOSI<=0 for all other states so it can't litter display with anything else:
-      default:
-            begin spi_mosi <= 0;                end
-    endcase
-  end
+  // An alternative:
+  // assign spi_mosi =
+  //   (state== 6 || state== 7)  ? 1:              // CMD[1:0] is 'b11.
+  //   (state>=21 && state<=27)  ? vpos[30-state]: // ADDR[10:4] is vpos[9:3]
+  //                               0;              // 0 for all other preamble bits
+  //                                               // and beyond.
 
   wire blanking = ~visible;
 
