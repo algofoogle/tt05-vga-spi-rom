@@ -18,7 +18,7 @@ module vga_spi_rom(
   input  wire         spi_miso
 );
 
-  localparam [9:0]    BUFFER_DEPTH      = 128;                            // Number of SPI data bits to read per line. Also sets size of our storage memory.
+  localparam [9:0]    BUFFER_DEPTH      = 256;                            // Number of SPI data bits to read per line. Also sets size of our storage memory.
   localparam [9:0]    SPI_CMD_LEN       = 8;                              // Number of bits to send first as SPI command.
   localparam [9:0]    SPI_ADDR_LEN      = 24;                             // Number of address bits to send after SPI command.
   localparam [9:0]    PREAMBLE_LEN      = SPI_CMD_LEN + SPI_ADDR_LEN;     // Total length of CMD+ADDR bits, before chip will start producing output data.
@@ -140,7 +140,7 @@ module vga_spi_rom(
 
   // Data comes from...
   wire [9:0] data_index_base = hpos-PREAMBLE_LEN;
-  wire [6:0] data_index = ~data_index_base[6:0];
+  wire [7:0] data_index = ~data_index_base[7:0]; // Needs to be enough bits to cover BUFFER_DEPTH.
   wire data =
     stored_mode ? data_buffer[data_index]:  // ...memory, in stored mode.
                   spi_miso;                 // ...chip, in direct mode.
