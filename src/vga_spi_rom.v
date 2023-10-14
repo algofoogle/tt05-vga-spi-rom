@@ -65,7 +65,7 @@ module vga_spi_rom(
                   hpos;
 
   // This screen-time range is when we store from MISO to buffer:
-  wire store_data_region = (hpos >= STORED_MODE_HEAD+PREAMBLE_LEN && hpos < STORED_MODE_TAIL);
+  wire store_data_region = (state >= PREAMBLE_LEN && state < STREAM_LEN);
   //NOTE: Could/should we instead use 'state'?
 
   // This screen-time range is when we display data (MISO direct, or from buffer):
