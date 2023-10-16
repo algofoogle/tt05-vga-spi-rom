@@ -45,7 +45,7 @@ module vga_spi_rom(
     .visible  (visible)
   );
   // vga_sync gives active-high H/VSYNC, but VGA needs active-low, so invert:
-  assign {hsync_n,vsync_n} = {hsync,vsync};
+  assign {hsync_n,vsync_n} = {~hsync,vsync};
 
   // Inverted clk directly drives SPI SCLK at full speed, continuously:
   assign spi_sclk = ~clk; 
