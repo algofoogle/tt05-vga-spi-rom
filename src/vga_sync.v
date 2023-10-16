@@ -23,33 +23,42 @@ module vga_sync #(
   // -  VBack:  20
   // -  VBLANK: 30
 
+  // // 550 clocks wide:
+  // parameter H_VIEW        = 426,   // Visible area comes first...
+  // parameter H_FRONT       =  38,   // ...then HBLANK starts with H_FRONT (RHS border)...
+  // parameter H_SYNC        =  13,   // ...then sync pulse starts...
+  // parameter H_BACK        =  73,   // ...then remainder of HBLANK (LHS border).
+  // parameter H_MAX         = H_VIEW + H_FRONT + H_SYNC + H_BACK - 1,
+  // parameter H_SYNC_START  = H_VIEW + H_FRONT,
+  // parameter H_SYNC_END    = H_SYNC_START + H_SYNC,
+  // // 750 lines tall:
+  // parameter V_VIEW        = 720,
+  // parameter V_FRONT       =   5,
+  // parameter V_SYNC        =   5,
+  // parameter V_BACK        =  20,
+  // parameter V_MAX         = V_VIEW + V_FRONT + V_SYNC + V_BACK - 1,
+  // parameter V_SYNC_START  = V_VIEW + V_FRONT,
+  // parameter V_SYNC_END    = V_SYNC_START + V_SYNC
+
+  // Trying 1920x1080p60 using CVT timing (28.833MHz PLL):
   // 550 clocks wide:
-  parameter H_VIEW        = 426,   // Visible area comes first...
-  parameter H_FRONT       =  38,   // ...then HBLANK starts with H_FRONT (RHS border)...
-  parameter H_SYNC        =  13,   // ...then sync pulse starts...
-  parameter H_BACK        =  73,   // ...then remainder of HBLANK (LHS border).
+  parameter H_VIEW        = 320,   // Visible area comes first...
+  parameter H_FRONT       =  21,   // ...then HBLANK starts with H_FRONT (RHS border)...
+  parameter H_SYNC        =  34,   // ...then sync pulse starts...
+  parameter H_BACK        =  55,   // ...then remainder of HBLANK (LHS border).
   parameter H_MAX         = H_VIEW + H_FRONT + H_SYNC + H_BACK - 1,
   parameter H_SYNC_START  = H_VIEW + H_FRONT,
   parameter H_SYNC_END    = H_SYNC_START + H_SYNC,
   // 750 lines tall:
-  parameter V_VIEW        = 720,
-  parameter V_FRONT       =   5,
+  parameter V_VIEW        = 1080,
+  parameter V_FRONT       =   3,
   parameter V_SYNC        =   5,
-  parameter V_BACK        =  20,
+  parameter V_BACK        =  32,
   parameter V_MAX         = V_VIEW + V_FRONT + V_SYNC + V_BACK - 1,
   parameter V_SYNC_START  = V_VIEW + V_FRONT,
   parameter V_SYNC_END    = V_SYNC_START + V_SYNC
 
   // 1920x1080p60 resolution:
-  // Doesn't work:
-
-  //   320+14+7+26 (367)
-  //   320+15+7+25 (367)
-  //   320+16+7+24 (367)
-  //   320+15+8+24 (367)
-
-  //   320+15+7+26 (368)
-  //   320+15+8+25 (368)
   // -          Base:       Div-6     Round
   // -  Clock:  148.5MHz    24.75MHz
   // -  FPS:    60Hz                  Effective: 24,750,000/367/1125=59.946Hz
@@ -66,16 +75,17 @@ module vga_sync #(
   // -  VBack:  36
   // -  (VBLANK: 45)
   // 
-  // // 367 clocks wide:
+  // 367 clocks wide, TOTAL SUM:
+  // // DOESN'T WORK ON ACER MONITOR:
   // parameter H_VIEW        = 320,   // Visible area comes first...
-  // parameter H_FRONT       =  16,   // ...then HBLANK starts with H_FRONT (RHS border)...
-  // parameter H_SYNC        =   7,   // ...then sync pulse starts...
-  // parameter H_BACK        =  24,   // ...then remainder of HBLANK (LHS border).
+  // parameter H_FRONT       =  15,   // ...then HBLANK starts with H_FRONT (RHS border)...
+  // parameter H_SYNC        =   8, // 7 no good either.   // ...then sync pulse starts...
+  // parameter H_BACK        =  25,   // ...then remainder of HBLANK (LHS border).
   // parameter H_MAX         = H_VIEW + H_FRONT + H_SYNC + H_BACK - 1,
   // parameter H_SYNC_START  = H_VIEW + H_FRONT,
   // parameter H_SYNC_END    = H_SYNC_START + H_SYNC,
-  // // 1125 lines tall:
-  // parameter V_VIEW        = 1125,
+  // // 1125 lines tall, TOTAL SUM:
+  // parameter V_VIEW        = 1080,
   // parameter V_FRONT       =    4,
   // parameter V_SYNC        =    5,
   // parameter V_BACK        =   36,
@@ -83,6 +93,23 @@ module vga_sync #(
   // parameter V_SYNC_START  = V_VIEW + V_FRONT,
   // parameter V_SYNC_END    = V_SYNC_START + V_SYNC
 
+  // // 1920x1080p30
+  // // DOESN'T WORK ON ACER MONITOR:
+  // parameter H_VIEW        = 640,   // Visible area comes first...
+  // parameter H_FRONT       =  29,   // ...then HBLANK starts with H_FRONT (RHS border)...
+  // parameter H_SYNC        =  15,   // ...then sync pulse starts...
+  // parameter H_BACK        =  49,   // ...then remainder of HBLANK (LHS border).
+  // parameter H_MAX         = H_VIEW + H_FRONT + H_SYNC + H_BACK - 1,
+  // parameter H_SYNC_START  = H_VIEW + H_FRONT,
+  // parameter H_SYNC_END    = H_SYNC_START + H_SYNC,
+  // // 1125 lines tall, TOTAL SUM:
+  // parameter V_VIEW        = 1080,
+  // parameter V_FRONT       =    4,
+  // parameter V_SYNC        =    5,
+  // parameter V_BACK        =   36,
+  // parameter V_MAX         = V_VIEW + V_FRONT + V_SYNC + V_BACK - 1,
+  // parameter V_SYNC_START  = V_VIEW + V_FRONT,
+  // parameter V_SYNC_END    = V_SYNC_START + V_SYNC
 
   // parameter H_VIEW        = 240,   // Visible area comes first...
   // parameter H_FRONT       =  11,   // ...then HBLANK starts with H_FRONT (RHS border)...
