@@ -16,15 +16,16 @@ module de0nano_top(
   input   [1:0]   gpio1_IN  // GPIO1 input-only pins
 );
 
-  wire clock_35p5;
+  wire pixel_clock;
 
   // Quartus-generated PLL module, created using this guide:
   // https://www.ece.ucdavis.edu/~bbaas/180/tutorials/using.a.PLL.pdf
   // This PLL is configured to take in our 50MHz clock and produce
-  // a 35.5MHz clock (clock_35p5):
+  // a 24.75MHz clock (pixel_clock), which is 148.5/6 (i.e. 1920x1080
+  // pixel clock divided by 6):
   pll	pll_inst (
     .inclk0 (CLOCK_50),
-    .c0     (clock_35p5)
+    .c0     (pixel_clock)
   );
 
 
@@ -98,12 +99,6 @@ module de0nano_top(
   // always @(posedge CLOCK_50) div_clocks <= div_clocks + 'd1;
   // assign {gpio1[26], gpio1[28], gpio1[30]} = div_clocks;
 
-  //SMELL: This is a bad way to do clock dividing.
-  // Can we instead use the built-in FPGA clock divider?
-  // reg clock_25; // VGA pixel clock of 25MHz is good enough. 25.175MHz is ideal (640x480x59.94)
-  // always @(posedge clock_35p5) clock_25 <= ~clock_25;
-  wire clock_25 = clock_35p5;
-
   // These are not specifically being tested at this stage:
   wire [5:0]  TestA = 6'b111111;
   wire        TestB = 1'b0;
@@ -117,7 +112,7 @@ module de0nano_top(
     .uio_out  ({TestB_out, TestA_out, rgb[6], rgb[3], rgb[0], spi_mosi, spi_sclk, spi_cs_n}),
     .uio_oe   (LED),  // Connect these to DE0-Nano's LEDs. 1=LED lit.
     .ena      (1'b1),
-    .clk      (clock_25),
+    .clk      (pixel_clock),
     .rst_n    (rst_n)
   );
 

@@ -18,13 +18,14 @@ module vga_spi_rom(
   input  wire         spi_miso
 );
 
+  //NOTE: At 1920x1080-div-6 we have 367 clocks per line to work with (320 visible).
   localparam [9:0]    BUFFER_DEPTH      = 136;                            // Number of SPI data bits to read per line. Also sets size of our storage memory.
   localparam          BUFFER_ADDR_TOP   = $clog2(BUFFER_DEPTH)-1;         // Buffer's address MSB, i.e. index into buffer.
   localparam [9:0]    SPI_CMD_LEN       = 8;                              // Number of bits to send first as SPI command.
   localparam [9:0]    SPI_ADDR_LEN      = 24;                             // Number of address bits to send after SPI command.
   localparam [9:0]    PREAMBLE_LEN      = SPI_CMD_LEN + SPI_ADDR_LEN;     // Total length of CMD+ADDR bits, before chip will start producing output data.
   localparam [9:0]    STREAM_LEN        = PREAMBLE_LEN + BUFFER_DEPTH;    // Number of bits in our full SPI read stream.
-  localparam [9:0]    STORED_MODE_HEAD  = 192;                            // When, in VGA line, to start the 'stored mode' sequence. (640-PREAMBLE_LEN) would run preamble (32bits, CMD[7:0] + ADDR[23:0]) to complete at end of 640w line.
+  localparam [9:0]    STORED_MODE_HEAD  = 176;                            // When, in VGA line, to start the 'stored mode' sequence. (640-PREAMBLE_LEN) would run preamble (32bits, CMD[7:0] + ADDR[23:0]) to complete at end of 640w line.
   localparam [9:0]    STORED_MODE_TAIL  = STORED_MODE_HEAD + STREAM_LEN;  // When, in VGA line, to STOP the 'stored mode' sequence, to prevent buffer overrun.
 
   // --- VGA sync driver: ---
@@ -44,7 +45,7 @@ module vga_spi_rom(
     .visible  (visible)
   );
   // vga_sync gives active-high H/VSYNC, but VGA needs active-low, so invert:
-  assign {hsync_n,vsync_n} = ~{hsync,vsync};
+  assign {hsync_n,vsync_n} = {hsync,vsync};
 
   // Inverted clk directly drives SPI SCLK at full speed, continuously:
   assign spi_sclk = ~clk; 
