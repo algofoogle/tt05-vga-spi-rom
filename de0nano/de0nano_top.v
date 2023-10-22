@@ -90,11 +90,27 @@ module de0nano_top(
   assign gpio1[  7] = hsync;
 
   // My SPI flash ROM chip is wired up to my DE0-Nano as follows:
-  wire spi_cs_n, spi_sclk, spi_mosi, spi_miso;
+  /*
+            Pin40   Pin39
+            +-----+-----+
+      SCLK  |io33 |io32 |  io3 (ROM pin 7)
+            +-----+-----+
+       /CS  |io31 |io30 |  io2 (ROM pin 3)
+            +-----+-----+
+(MOSI) io0  |io29 |io28 |  N/C
+            +-----+-----+
+(MISO) io1  |io27 |io26 |  N/C
+            +-----+-----+
+            |     |     |
+
+  */
+  // Inputs (signals the memory chip sends to us in quad mode):
+  wire [3:0] spi_in = {gpio1[32], gpio1[30], gpio1[27], gpio1[29]};
+  // Outputs that our DUT sends to the memory chip:
+  wire spi_cs_n, spi_sclk, spi_out0, spi_dir0;
   assign gpio1[33] = spi_sclk;
   assign gpio1[31] = spi_cs_n;
-  assign gpio1[29] = spi_mosi;
-  assign spi_miso  = gpio1[27];
+  assign gpio1[29] = (spi_dir0==0) ? spi_out0 : 1'bz; // When dir0==1, gpio1[29] becomes an input, feeding spi_in[0].
 
   // // CLOCK_50 output on GPIO1 pin 39 (io32, aka GPIO_132):
   // assign gpio1[ 32] = CLOCK_50;
@@ -104,17 +120,21 @@ module de0nano_top(
   // assign {gpio1[26], gpio1[28], gpio1[30]} = div_clocks;
 
   // These are not specifically being tested at this stage:
-  wire [4:0]  TestA = 5'b11111;
+  wire [2:0]  TestA = 3'b111;
   wire        TestB = 1'b0;
   wire        TestA_out, TestB_out; // These go nowhere for now.
 
+  wire [7:0] uio_oe;
+  assign LED = uio_oe;
+  assign spi_dir0 = uio_oe[2];
+
   // This is the TT05 submission TOP that we're testing:
   tt_um_algofoogle_vga_spi_rom dut (
-    .ui_in    ({TestB, TestA, vga_mode, spi_miso}),
+    .ui_in    ({TestB, TestA, vga_mode, spi_in[3:1]}),
     .uo_out   ({rgb[8:7], rgb[5:4], rgb[2:1], vsync, hsync}),
-    .uio_in   (8'b0), // UNUSED.
-    .uio_out  ({TestB_out, TestA_out, rgb[6], rgb[3], rgb[0], spi_mosi, spi_sclk, spi_cs_n}),
-    .uio_oe   (LED),  // Connect these to DE0-Nano's LEDs. 1=LED lit.
+    .uio_in   ({5'b00000, spi_in[0], 2'b00}), // Only uio_in[2] is used as an input, SOMETIMES.
+    .uio_out  ({TestB_out, TestA_out, rgb[6], rgb[3], rgb[0], spi_out0, spi_sclk, spi_cs_n}),
+    .uio_oe   (uio_oe),  // oe[2] sets dir for SPI io[0]. Rest are always outputs. These are all also connected to DE0-Nano's LEDs. 1=LED lit.
     .ena      (1'b1),
     .clk      (pixel_clock),
     .rst_n    (rst_n)

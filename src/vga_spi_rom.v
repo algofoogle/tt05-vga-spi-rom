@@ -15,16 +15,12 @@ module vga_spi_rom(
   // SPI ROM interface:
   output wire         spi_cs, //NOTE: Active HIGH. Most chips use active LOW (csb, cs_n, ss_n, whatever). Invert as needed in parent module.
   output wire         spi_sclk,
-  // output wire         spi_mosi,
-  // input wire          spi_miso
   // This is the generic SPI controller interface, to support both normal SPI (single) and QSPI.
-  // For normal SPI, spi_dir==1110 (io0 is MOSI, an output; io1 is MISO, an input; the rest are inputs (for safety) but unused).
-  // For QSPI, spi_dir changes between 1110 and 1111 as required.
-  //SMELL: This means the upper 3 bits of spi_dir are redundant, *except* that we might later want to support Quad I/O,
-  // which means we would switch between 1110, 0000, and 1111 as required.
+  // For normal SPI, spi_dir0==0 (io0 is MOSI, an output; the rest are inputs (for safety) but unused).
+  // For QSPI, spi_dir0 changes between 0 and 1 as required i.e. io[0] switches direction, while io[3:1] remain as inputs.
   input wire [3:0]    spi_in,   // "In" side of io0..3 -- NOTE: spi_in[1] is typically MISO.
-  output wire [3:0]   spi_out,  // "Out" side of io0..3 -- NOTE: spi_out[0] is typically MOSI.
-  output wire [3:0]   spi_dir   // Direction control for SPI io[3:0]. 0=Output, 1=Input
+  output wire         spi_out0, // "Out" side of io0 -- NOTE: spi_out0 is typically MOSI.
+  output wire         spi_dir0  // Direction control for SPI io[0]. 0=Output, 1=Input
 );
 
   localparam [9:0]    BUFFER_DEPTH      = 136;                            // Number of SPI data bits to read per line. Also sets size of our storage memory.
@@ -80,8 +76,8 @@ module vga_spi_rom(
   always @(posedge spi_sclk) begin
     if (stored_mode) begin
       if (store_data_region) begin
-        // Bits are streaming out via MISO, so shift them into data_buffer:
-        data_buffer <= {data_buffer[BUFFER_DEPTH-2:0], spi_miso};
+        // Bits are streaming out via MISO (SPI io[1]), so shift them into data_buffer:
+        data_buffer <= {data_buffer[BUFFER_DEPTH-2:0], spi_in[1]};
       end
     end
   end
@@ -89,17 +85,19 @@ module vga_spi_rom(
   // Chip is ON for the whole duration of our SPI read stream:
   assign spi_cs = state < STREAM_LEN;
 
+  assign spi_dir0 = 1'b0; // io[0] is output (MOSI); SPI io[3:1] are inputs.
+
   // This is a simple way to work out what data to present at MOSI during the
   // SPI preamble:
-  assign spi_mosi =
+  assign spi_out0 =
     (state== 6 || state== 7)  ? 1'b1:           // CMD[1:0] is 'b11.
     (state>=21 && state<=27)  ? vpos[30-state]: // ADDR[10:4] is vpos[9:3]
                                 1'b0;           // 0 for all other preamble bits
                                                 // and beyond.
-  // The above combo logic for spi_cs and spi_mosi gives us the following output
+  // The above combo logic for spi_cs and MOSI (spi_out0) gives us the following output
   // for each 'state':
   //
-  // | state    | spi_cs   | spi_mosi | note                              |
+  // | state    | spi_cs   | MOSI     | note                              |
   // |---------:|---------:|---------:|:----------------------------------|
   // | (n)      | 0        | 0        | (any state not otherwise covered) |
   // |  0       | 1        | 0        | CMD[7]; chip ON                   |
@@ -151,13 +149,13 @@ module vga_spi_rom(
   wire data =
     mask_stored ? 1'b0:                     // ...nowhere outside paint range.
     stored_mode ? data_buffer[data_index]:  // ...memory, in stored mode.
-                  spi_miso;                 // ...chip, in direct mode.
+                  spi_in[1];                // ...chip, in direct mode.
 
   wire `RGB pixel_color =
     // Force green pixels during MOSI high:
-    spi_mosi  ? 9'b000_111_000:
+    spi_out0  ? 9'b000_111_000:
     // Else, B=/CS, G=data, R=odd/even byte.
-                { {3{spi_cs}}, {3{data}}, {3{~odd_byte}} };
+              { {3{spi_cs}}, {3{data}}, {3{~odd_byte}} };
 
   // Dividing lines are blacked out, i.e. first line of each address line pair,
   // because they contain buffer junk, but also to make it easier to see pairs:

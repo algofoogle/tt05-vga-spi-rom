@@ -105,13 +105,13 @@ documentation:
         (all 3 bits per channel), ensuring it buffers each of those digital outputs.
 
   inputs:
-    - 'In: MISO'
+    - 'In: SPI io[1] / MISO'
+    - 'In: SPI io[2]'
+    - 'In: SPI io[3]'
     - 'In: vga_mode'
     - 'In: TestA[0]'
     - 'In: TestA[1]'
     - 'In: TestA[2]'
-    - 'In: TestA[3]'
-    - 'In: TestA[4]'
     - 'In: TestB'
   outputs:
     # These match my tt04-raybox-zero design (https://app.tinytapeout.com/projects/136)
@@ -124,9 +124,9 @@ documentation:
     - 'Out: blue[1]'
     - 'Out: blue[2]'
   bidirectional:
-    - 'Out: /CS'
-    - 'Out: SCLK'
-    - 'Out: MOSI'
+    - 'Out: SPI /CS'
+    - 'Out: SPI SCLK'
+    - 'Out: SPI io[0] / MOSI'
     - 'Out: red[0]'
     - 'Out: green[0]'
     - 'Out: blue[0]'
@@ -134,7 +134,7 @@ documentation:
     - 'Out: TestB_out'
 
 # The following fields are optional
-  tag:          "test, experiment, spi, vga"
+  tag:          "test, experiment, spi, qspi, vga"
   external_hw:  "VGA DAC (RGB111, 222, or 333-depth) and SPI flash memory"
   discord:      "algofoogle"
   doc_link:     "https://github.com/algofoogle/tt05-vga-spi-rom"

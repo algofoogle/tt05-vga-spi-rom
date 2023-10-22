@@ -4,9 +4,11 @@
 `include "helpers.v"
 
 // ui_in: Dedicated inputs:
-//  ui_in   [0]: SPI MISO (data in from SPI memory device).
-//  ui_in   [1]: vga_mode select: 0=640x480@60Hz, 1=1440x900@60Hz
-//  ui_in   [6:2]: TestA[4:0] - 5-input AND gate (outputs to TestA_out)
+//  ui_in   [0]: SPI io[1] (MISO for simple reads, i.e. data in from SPI memory device).
+//  ui_in   [1]: SPI io[2] (input, only used during Quad Fast Read).
+//  ui_in   [2]: SPI io[3] (input, only used during Quad Fast Read).
+//  ui_in   [3]: vga_mode select: 0=640x480@60Hz, 1=1440x900@60Hz
+//  ui_in   [6:4]: TestA[2:0] - 3-input AND gate (outputs to TestA_out)
 //  ui_in   [7]: TestB - Loops directly back out to TestB_out
 //
 // uo_out: Dedicated outputs:
@@ -22,7 +24,7 @@
 // uio_out: Bidirectional pins used as outputs:
 //  uio_out [0]: SPI /CS (Chip Select, active low).
 //  uio_out [1]: SPI SCLK (Serial clock out to SPI memory device).
-//  uio_out [2]: SPI MOSI (Control/data from our device to the SPI memory device).
+//  uio_out [2]: SPI io[0] (MOSI for simple reads, i.e. command/data from our device to the SPI memory device).
 //  uio_out [3]: red[0]
 //  uio_out [4]: green[0]
 //  uio_out [5]: blue[0]
@@ -43,13 +45,15 @@ module tt_um_algofoogle_vga_spi_rom (
   // Our design uses an active HIGH reset:
   wire reset = ~rst_n;
 
-  // All bidirectional pins are outputs for now:
-  assign uio_oe = 8'b1111_1111;
+  // All bidirectional pins *except* [2] are fixed outputs for now:
+  assign uio_oe[7:3] = 5'b11111;
+  assign uio_oe[1:0] = 2'b11;
+  // [2] is controlled by the design (as it is SPI io[0]).
 
   // Loop back ui_in[7] to uio_out[7]. Maybe we can use this for testing delays:
   assign uio_out[7] = ui_in[7];
   // Make a big AND to use up the remaining ui_in pins:
-  assign uio_out[6] = &ui_in[6:2];
+  assign uio_out[6] = &ui_in[6:4];
 
   // VGA digital RGB333 outputs:
   // The 9 total RGB output bits are split across uo_out and uio_out...
@@ -62,7 +66,7 @@ module tt_um_algofoogle_vga_spi_rom (
   assign {uo_out[3:2],uio_out[3]} = rgb[2:0];
 
   // VGA mode selection: 0=640x480@60Hz, 1=1440x900@60Hz
-  wire vga_mode = ui_in[1];
+  wire vga_mode = ui_in[3];
 
   // VGA sync outputs (polarity of each matches whatever vga_mode requires):
   wire vsync, hsync;
@@ -71,14 +75,20 @@ module tt_um_algofoogle_vga_spi_rom (
   // HSYNC:
   assign uo_out[0] = hsync;
 
-  // SPI memory I/O:
+  // SPI memory I/O...
+  wire [3:0] spi_in;
+  // SPI /CS:
   wire spi_cs;  //NOTE: Per vga_spi_rom design, active HIGH. Invert for SPI /CS.
-  wire spi_sclk, spi_mosi;
-  wire spi_miso;
   assign uio_out[0] = ~spi_cs;  // Invert spi_cs to make /CS.
-  assign uio_out[1] =  spi_sclk;
-  assign uio_out[2] =  spi_mosi;
-  assign spi_miso   =  ui_in[0];
+  // SPI SCLK:
+  wire spi_sclk;
+  assign uio_out[1] = spi_sclk;
+  // SPI io[0] (aka MOSI):
+  assign uio_oe[2] = ~spi_dir0; // Direction for io[0].
+  assign uio_out[2] = spi_out0; // Output side.
+  assign spi_in[0] = uio_in[2]; // Input side.
+  // SPI io[3:1] (fixed inputs):
+  assign spi_in[3:1] = ui_in[2:0];
   
   vga_spi_rom vga_spi_rom(
     .clk      (clk),
@@ -91,8 +101,9 @@ module tt_um_algofoogle_vga_spi_rom (
     // SPI memory interface:
     .spi_cs   (spi_cs),
     .spi_sclk (spi_sclk),
-    .spi_mosi (spi_mosi),
-    .spi_miso (spi_miso)
+    .spi_in   (spi_in),
+    .spi_out0 (spi_out0),
+    .spi_dir0 (spi_dir0)
   );
 
 endmodule
