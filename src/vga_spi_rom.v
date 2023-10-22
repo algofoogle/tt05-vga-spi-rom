@@ -7,15 +7,24 @@
 module vga_spi_rom(
   input               clk,
   input               reset,
+  input wire          vga_mode, // 0=640x480@60Hz, 1=1440x900@60Hz
   // VGA outputs:
-  output wire         hsync_n,
-  output wire         vsync_n,
+  output wire         hsync,  // Polarity matches whatever the selected 'vga_mode' needs.
+  output wire         vsync,  // Polarity matches whatever the selected 'vga_mode' needs.
   output wire `RGB    rgb,
   // SPI ROM interface:
   output wire         spi_cs, //NOTE: Active HIGH. Most chips use active LOW (csb, cs_n, ss_n, whatever). Invert as needed in parent module.
   output wire         spi_sclk,
   output wire         spi_mosi,
-  input  wire         spi_miso
+  input wire          spi_miso
+  // // This is the generic SPI controller interface, to support both normal SPI (single) and QSPI.
+  // // For normal SPI, spi_dir==1110 (io0 is MOSI, an output; io1 is MISO, an input; the rest are inputs (for safety) but unused).
+  // // For QSPI, spi_dir changes between 1110 and 1111 as required.
+  // //SMELL: This means the upper 3 bits of spi_dir are redundant, *except* that we might later want to support Quad I/O,
+  // // which means we would switch between 1110, 0000, and 1111 as required.
+  // input wire [3:0]    spi_in,   // "In" side of io0..3 -- NOTE: spi_in[1] is typically MISO.
+  // output wire [3:0]   spi_out,  // "Out" side of io0..3 -- NOTE: spi_out[0] is typically MOSI.
+  // output wire [3:0]   spi_dir   // Direction control for SPI io[3:0]. 0=Output, 1=Input
 );
 
   localparam [9:0]    BUFFER_DEPTH      = 136;                            // Number of SPI data bits to read per line. Also sets size of our storage memory.
@@ -35,16 +44,17 @@ module vga_spi_rom(
   vga_sync vga_sync(
     .clk      (clk),
     .reset    (reset),
-    .hsync    (hsync),
-    .vsync    (vsync),
-    .hpos     (hpos),
-    .vpos     (vpos),
-    .hmax     (hmax),
-    .vmax     (vmax),
-    .visible  (visible)
+    .mode     (vga_mode), // 0=640x480@60Hz, 1=1440x900@60Hz
+    .o_hsync  (hsync),  // Polarity matches whatever the selected 'mode' needs.
+    .o_vsync  (vsync),  // Polarity matches whatever the selected 'mode' needs.
+    .o_hpos   (hpos),
+    .o_vpos   (vpos),
+    .o_hmax   (hmax),
+    .o_vmax   (vmax),
+    .o_visible(visible)
   );
   // vga_sync gives active-high H/VSYNC, but VGA needs active-low, so invert:
-  assign {hsync_n,vsync_n} = ~{hsync,vsync};
+  //assign {hsync_n,vsync_n} = ~{hsync,vsync};
 
   // Inverted clk directly drives SPI SCLK at full speed, continuously:
   assign spi_sclk = ~clk; 

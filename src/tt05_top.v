@@ -5,10 +5,13 @@
 
 // ui_in: Dedicated inputs:
 //  ui_in   [0]: SPI MISO (data in from SPI memory device).
+//  ui_in   [1]: vga_mode select: 0=640x480@60Hz, 1=1440x900@60Hz
+//  ui_in   [6:2]: TestA[4:0] - 5-input AND gate (outputs to TestA_out)
+//  ui_in   [7]: TestB - Loops directly back out to TestB_out
 //
 // uo_out: Dedicated outputs:
-//  uo_out  [0]: hsync_n
-//  uo_out  [1]: vsync_n
+//  uo_out  [0]: hsync
+//  uo_out  [1]: vsync
 //  uo_out  [2]: red[1]
 //  uo_out  [3]: red[2]
 //  uo_out  [4]: green[1]
@@ -23,6 +26,8 @@
 //  uio_out [3]: red[0]
 //  uio_out [4]: green[0]
 //  uio_out [5]: blue[0]
+//  uio_out [6]: TestA_out
+//  uio_out [7]: TestB_out
 
 module tt_um_algofoogle_vga_spi_rom (
     input  wire [7:0] ui_in,    // Dedicated inputs
@@ -44,7 +49,7 @@ module tt_um_algofoogle_vga_spi_rom (
   // Loop back ui_in[7] to uio_out[7]. Maybe we can use this for testing delays:
   assign uio_out[7] = ui_in[7];
   // Make a big AND to use up the remaining ui_in pins:
-  assign uio_out[6] = &ui_in[6:1];
+  assign uio_out[6] = &ui_in[6:2];
 
   // VGA digital RGB333 outputs:
   // The 9 total RGB output bits are split across uo_out and uio_out...
@@ -56,12 +61,15 @@ module tt_um_algofoogle_vga_spi_rom (
   // Red:
   assign {uo_out[3:2],uio_out[3]} = rgb[2:0];
 
-  // VGA sync outputs:
-  wire vsync_n, hsync_n;
+  // VGA mode selection: 0=640x480@60Hz, 1=1440x900@60Hz
+  wire vga_mode = ui_in[1];
+
+  // VGA sync outputs (polarity of each matches whatever vga_mode requires):
+  wire vsync, hsync;
   // VSYNC:
-  assign uo_out[1] = vsync_n;
+  assign uo_out[1] = vsync;
   // HSYNC:
-  assign uo_out[0] = hsync_n;
+  assign uo_out[0] = hsync;
 
   // SPI memory I/O:
   wire spi_cs;  //NOTE: Per vga_spi_rom design, active HIGH. Invert for SPI /CS.
@@ -71,13 +79,14 @@ module tt_um_algofoogle_vga_spi_rom (
   assign uio_out[1] =  spi_sclk;
   assign uio_out[2] =  spi_mosi;
   assign spi_miso   =  ui_in[0];
-
+  
   vga_spi_rom vga_spi_rom(
     .clk      (clk),
     .reset    (reset),
+    .vga_mode (vga_mode),
     // VGA outputs:
-    .hsync_n  (hsync_n),
-    .vsync_n  (vsync_n),
+    .hsync    (hsync),
+    .vsync    (vsync),
     .rgb      (rgb),
     // SPI memory interface:
     .spi_cs   (spi_cs),

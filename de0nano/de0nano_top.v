@@ -16,17 +16,22 @@ module de0nano_top(
   input   [1:0]   gpio1_IN  // GPIO1 input-only pins
 );
 
-  wire clock_35p5;
+  wire pixel_clock;
 
   // Quartus-generated PLL module, created using this guide:
   // https://www.ece.ucdavis.edu/~bbaas/180/tutorials/using.a.PLL.pdf
   // This PLL is configured to take in our 50MHz clock and produce
-  // a 35.5MHz clock (clock_35p5):
+  // a slower VGA pixel clock. Depending on test conditions it will
+  // either be 25.0000MHz, 25.1750MHz, or ~26.6175MHz.
   pll	pll_inst (
     .inclk0 (CLOCK_50),
-    .c0     (clock_35p5)
+    .c0     (pixel_clock)
   );
 
+  // DIP switch no. 1 on the FPGA board selects which vga_mode we want.
+  // If switched to "ON", SW[0] is pulled LOW: selects vga_mode 0 (640x480).
+  // If switched off, SW[0] is pulled HIGH: selects vga_mode 1 (1440x900).
+  wire vga_mode = SW[0];
 
   // K4..K1 external buttons board (K4 is top, K1 is bottom):
   //NOTE: These buttons are active LOW, so we invert them here to make them active HIGH:
@@ -80,9 +85,9 @@ module de0nano_top(
   assign gpio1[  8] = rgb[8];
 
   // HSYNC/VSYNC:
-  wire hsync_n, vsync_n;
-  assign gpio1[  5] = vsync_n;
-  assign gpio1[  7] = hsync_n;
+  wire hsync, vsync;
+  assign gpio1[  5] = vsync;
+  assign gpio1[  7] = hsync;
 
   // My SPI flash ROM chip is wired up to my DE0-Nano as follows:
   wire spi_cs_n, spi_sclk, spi_mosi, spi_miso;
@@ -98,26 +103,20 @@ module de0nano_top(
   // always @(posedge CLOCK_50) div_clocks <= div_clocks + 'd1;
   // assign {gpio1[26], gpio1[28], gpio1[30]} = div_clocks;
 
-  //SMELL: This is a bad way to do clock dividing.
-  // Can we instead use the built-in FPGA clock divider?
-  // reg clock_25; // VGA pixel clock of 25MHz is good enough. 25.175MHz is ideal (640x480x59.94)
-  // always @(posedge clock_35p5) clock_25 <= ~clock_25;
-  wire clock_25 = clock_35p5;
-
   // These are not specifically being tested at this stage:
-  wire [5:0]  TestA = 6'b111111;
+  wire [4:0]  TestA = 5'b11111;
   wire        TestB = 1'b0;
   wire        TestA_out, TestB_out; // These go nowhere for now.
 
   // This is the TT05 submission TOP that we're testing:
   tt_um_algofoogle_vga_spi_rom dut (
-    .ui_in    ({TestB, TestA, spi_miso}),
-    .uo_out   ({rgb[8:7], rgb[5:4], rgb[2:1], vsync_n, hsync_n}),
+    .ui_in    ({TestB, TestA, vga_mode, spi_miso}),
+    .uo_out   ({rgb[8:7], rgb[5:4], rgb[2:1], vsync, hsync}),
     .uio_in   (8'b0), // UNUSED.
     .uio_out  ({TestB_out, TestA_out, rgb[6], rgb[3], rgb[0], spi_mosi, spi_sclk, spi_cs_n}),
     .uio_oe   (LED),  // Connect these to DE0-Nano's LEDs. 1=LED lit.
     .ena      (1'b1),
-    .clk      (clock_25),
+    .clk      (pixel_clock),
     .rst_n    (rst_n)
   );
 
