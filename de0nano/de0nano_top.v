@@ -126,7 +126,7 @@ module de0nano_top(
 
   wire [7:0] uio_oe;
   assign LED = uio_oe;
-  assign spi_dir0 = uio_oe[2];
+  assign spi_dir0 = ~uio_oe[2]; // For TT, 1=Output. We want 0=Output (so it's inverted).
 
   // This is the TT05 submission TOP that we're testing:
   tt_um_algofoogle_vga_spi_rom dut (

@@ -85,7 +85,7 @@ module tt_um_algofoogle_vga_spi_rom (
   assign uio_out[1] = spi_sclk;
   // SPI io[0] (aka MOSI):
   wire spi_dir0, spi_out0;
-  assign uio_oe[2] = ~spi_dir0; // Direction for io[0].
+  assign uio_oe[2] = ~spi_dir0; // Direction for io[0]. vga_spi_rom uses 0=Output; TT needs 1=Output.
   assign uio_out[2] = spi_out0; // Output side.
   assign spi_in[0] = uio_in[2]; // Input side.
   // SPI io[3:1] (fixed inputs):
