@@ -37,7 +37,6 @@ module vga_spi_rom(
   localparam [9:0]    STORED_MODE_TAIL  = STORED_MODE_HEAD + STREAM_LEN;  // When, in VGA line, to STOP the 'stored mode' sequence, to prevent buffer overrun.
 
   // --- VGA sync driver: ---
-  wire hsync, vsync;
   wire [9:0] hpos, vpos;
   wire visible;
   wire hmax, vmax;
@@ -45,16 +44,14 @@ module vga_spi_rom(
     .clk      (clk),
     .reset    (reset),
     .mode     (vga_mode), // 0=640x480@60Hz, 1=1440x900@60Hz
-    .o_hsync  (hsync),  // Polarity matches whatever the selected 'mode' needs.
-    .o_vsync  (vsync),  // Polarity matches whatever the selected 'mode' needs.
+    .o_hsync  (hsync),  // vga_sync module ensures polarity matches whatever the selected 'mode' needs.
+    .o_vsync  (vsync),  // vga_sync module ensures polarity matches whatever the selected 'mode' needs.
     .o_hpos   (hpos),
     .o_vpos   (vpos),
     .o_hmax   (hmax),
     .o_vmax   (vmax),
     .o_visible(visible)
   );
-  // vga_sync gives active-high H/VSYNC, but VGA needs active-low, so invert:
-  //assign {hsync_n,vsync_n} = ~{hsync,vsync};
 
   // Inverted clk directly drives SPI SCLK at full speed, continuously:
   assign spi_sclk = ~clk; 

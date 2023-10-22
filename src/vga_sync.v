@@ -12,6 +12,8 @@ module vga_sync #(
   // - H_VIEW, V_VIEW
   // - H_SYNC_START, V_SYNC_START
   // - H_SYNC_END, V_SYNC_END
+  
+  //SMELL: If we use these parameters in future, should they just be localparams instead?
 
   // Mode 0: 640x480@60Hz timing (http://tinyvga.com/vga-timing/640x480@60Hz).
   // Overall timing for true VGA 25.175MHz clock: 25,175,000 / 800 / 525 = 59.94Hz
@@ -31,7 +33,7 @@ module vga_sync #(
   parameter M0_V_BACK       =  33,
   parameter M0_V_MAX        = M0_V_VIEW + M0_V_FRONT + M0_V_SYNC + M0_V_BACK - 1,
   parameter M0_V_SYNC_START = M0_V_VIEW + M0_V_FRONT,
-  parameter M0_V_SYNC_END   = M0_V_SYNC_START + M0_V_SYNC
+  parameter M0_V_SYNC_END   = M0_V_SYNC_START + M0_V_SYNC,
 
   // Mode 1: 1440x900@60 timing (http://tinyvga.com/vga-timing/1440x900@60Hz),
   // but with the clock divided by 4 (so 360x900) from 106.47MHz to 26.6175MHz.
@@ -65,45 +67,50 @@ module vga_sync #(
   input wire          reset,
   input wire          mode,   // Selects between 640x480@60 timing (mode 0) and 1440x900@60 timing (mode 1).
   // Outputs:
-  output reg          o_hsync,  // Polarity matches whatever the selected 'mode' needs.
-  output reg          o_vsync,  // Polarity matches whatever the selected 'mode' needs.
-  output reg [9:0]    o_hpos,
-  output reg [9:0]    o_vpos,
+  output wire         o_hsync,  // Polarity matches whatever the selected 'mode' needs.
+  output wire         o_vsync,  // Polarity matches whatever the selected 'mode' needs.
+  output wire [9:0]   o_hpos,
+  output wire [9:0]   o_vpos,
   output wire         o_hmax,
   output wire         o_vmax,
   output wire         o_visible
 );
 
+  // HSYNC and VSYNC:
   // These are the internal POSITIVE polarity sync signals.
   reg hsync, vsync;
-
   // Mode 0 and 1 both use negative polarity HSYNC:
   assign o_hsync = hsync;
   // Mode 0 VSYNC is neg polarity. For Mode 1 it is pos:
   assign o_vsync = (mode==0) ? ~vsync : vsync;
+  
+  // Pixel counters:
+  reg [9:0] hpos, vpos;
+  assign o_hpos = hpos;
+  assign o_vpos = vpos;
 
   //TODO: Reduce equality checks to just test the bits that matter,
   // because we don't care about values ABOVE these.
   // Might also be able to do similar with comparisons.
   //TODO: Consider making 'visible' a reg insted of combo.
 
-  assign hmax = (mode==0) ? (hpos == M0_H_MAX) : (hpos == M1_H_MAX);
-  assign vmax = (mode==0) ? (vpos == M0_V_MAX) : (vpos == M1_V_MAX);
-  assign visible =
+  assign o_hmax = (mode==0) ? (hpos == M0_H_MAX) : (hpos == M1_H_MAX);
+  assign o_vmax = (mode==0) ? (vpos == M0_V_MAX) : (vpos == M1_V_MAX);
+  assign o_visible =
     (mode==0) ? (hpos<M0_H_VIEW && vpos<M0_V_VIEW):
                 (hpos<M1_H_VIEW && vpos<M1_V_VIEW);
 
   // Horizontal tracing:
   always @(posedge clk) begin
           if (reset)                      hpos <= 0;
-    else  if (hmax)                       hpos <= 0;
+    else  if (o_hmax)                     hpos <= 0;
     else                                  hpos <= hpos + 1'b1;
   end
 
   // Vertical tracing:
   always @(posedge clk) begin
           if (reset)                      vpos <= 0;
-    else  if (hmax)                       vpos <= (vmax) ? 1'b0 : vpos + 1'b1;
+    else  if (o_hmax)                     vpos <= (o_vmax) ? 1'b0 : vpos + 1'b1;
   end
 
   // HSYNC:
