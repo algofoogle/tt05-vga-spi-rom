@@ -4,6 +4,9 @@
 
 This is a simple submission for Tiny Tapeout 05 (TT05) which tests reading (and optionally buffering) and displaying data from an attached SPI flash memory (e.g. W25Q80) on a VGA display.
 
+NOTE: At any point in time, this doco might be outdated, and you might find [`info.yaml`](./info.yaml) to
+have more recent documentation.
+
 ![VGA display showing SPI flash ROM contents](./doc/vga_spi_rom-display.jpg)
 
 NOTE to self: The original version of this code is from my private repo, [here](https://github.com/algofoogle/sandpit/tree/master/fpga/vga_spi_rom).
