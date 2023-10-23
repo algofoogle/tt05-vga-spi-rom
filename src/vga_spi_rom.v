@@ -124,10 +124,20 @@ module vga_spi_rom(
   // This is a simple way to work out what data to present at MOSI during the
   // SPI preamble:
   assign spi_out0 =
-    (state<8)                 ? spi_cmd[7-state]: // CMD[7:0]
-    (state>=21 && state<=27)  ? vpos[30-state]:   // ADDR[10:4] is vpos[9:3]
-                                1'b0;             // 0 for all other preamble bits
-                                                  // and beyond.
+    quad ? (
+      // In quad mode, we read 68 bytes per line (64-byte aligned):
+      (state<8)                 ? spi_cmd[7-state]: // CMD[7:0]
+      (state>=19 && state<=25)  ? vpos[28-state]:   // ADDR[12:6] is vpos[9:3]
+                                  1'b0              // 0 for all other preamble bits and beyond.
+    ) : (
+      // In regular mode, we read 17 bytes per line (16-byte aligned):
+      (state<8)                 ? spi_cmd[7-state]: // CMD[7:0]
+      (state>=21 && state<=27)  ? vpos[30-state]:   // ADDR[10:4] is vpos[9:3]
+                                  1'b0              // 0 for all other preamble bits and beyond.
+    );
+
+
+
   // The above combo logic for spi_cs and MOSI (spi_out0) gives us the following output
   // for each 'state':
   //

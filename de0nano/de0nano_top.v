@@ -91,26 +91,47 @@ module de0nano_top(
 
   // My SPI flash ROM chip is wired up to my DE0-Nano as follows:
   /*
-            Pin40   Pin39
-            +-----+-----+
-      SCLK  |io33 |io32 |  io3 (ROM pin 7)
-            +-----+-----+
-       /CS  |io31 |io30 |  io2 (ROM pin 3)
-            +-----+-----+
-(MOSI) io0  |io29 |io28 |  N/C
-            +-----+-----+
-(MISO) io1  |io27 |io26 |  N/C
-            +-----+-----+
-            |     |     |
+
+                           +-----+-----+
+      (ROM pin 6) SCLK  40 |io33 |io32 | 39  N/C
+                           +-----+-----+
+                   N/C  38 |io31 |io30 | 37  io3 (ROM pin 7)
+                           +-----+-----+
+      (ROM pin 3)  io2  36 |io29 |io28 | 35  io0 (ROM pin 5) (MOSI)
+                           +-----+-----+
+                   N/C  34 |io27 |io26 | 33  io1 (ROM pin 2) (MISO)
+                           +-----+-----+
+      (ROM pin 1)  /CS  32 |io25 |io24 | 31  N/C
+                           +-----+-----+
+      (ROM pin 4)  GND  30 | GND |3.3V | 29  VCC (ROM pin 8)
+                           +-----+-----+
+                           |     |     |
+
+  Thus, gpio1 mapping to SPI flash ROM is as follows:
+
+  | gpio1 pin | gpio1[x]  | ROM pin | Function   |
+  |----------:|----------:|--------:|------------|
+  |     29    |    VCC3P3 |       8 | VCC3P3     |
+  |     30    |       GND |       4 | GND        |
+  |     31    | gpio1[24] |   (n/c) |            |
+  |     32    | gpio1[25] |       1 | /CS        |
+  |     33    | gpio1[26] |       2 | io1 (MISO) |
+  |     34    | gpio1[27] |   (n/c) |            |
+  |     35    | gpio1[28] |       5 | io0 (MOSI) |
+  |     36    | gpio1[29] |       3 | io2        |
+  |     37    | gpio1[30] |       7 | io3        |
+  |     38    | gpio1[31] |   (n/c) |            |
+  |     39    | gpio1[32] |   (n/c) |            |
+  |     40    | gpio1[33] |       6 | SCLK       |
 
   */
   // Inputs (signals the memory chip sends to us in quad mode):
-  wire [3:0] spi_in = {gpio1[32], gpio1[30], gpio1[27], gpio1[29]};
+  wire [3:0] spi_in = {gpio1[30], gpio1[29], gpio1[26], gpio1[28]};
   // Outputs that our DUT sends to the memory chip:
   wire spi_cs_n, spi_sclk, spi_out0, spi_dir0;
   assign gpio1[33] = spi_sclk;
-  assign gpio1[31] = spi_cs_n;
-  assign gpio1[29] = (spi_dir0==0) ? spi_out0 : 1'bz; // When dir0==1, gpio1[29] becomes an input, feeding spi_in[0].
+  assign gpio1[25] = spi_cs_n;
+  assign gpio1[28] = (spi_dir0==0) ? spi_out0 : 1'bz; // When dir0==1, gpio1[28] becomes an input, feeding spi_in[0].
 
   // // CLOCK_50 output on GPIO1 pin 39 (io32, aka GPIO_132):
   // assign gpio1[ 32] = CLOCK_50;
