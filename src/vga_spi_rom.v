@@ -204,13 +204,13 @@ module vga_spi_rom(
   // In quad mode, spi_in[2:0] drive base BGR color, while io[3] shifts for intensity:
   wire `RGB quad_color = 
   {
-    {1'b0,spi_in[3],1'b0}, // Blue
-    {1'b0,spi_in[3],1'b0}, // Green
-    {1'b0,spi_in[3],1'b0}, // Red
+    {1'b0,spi_in[3],1'b0},  // Blue
+    {1'b0,spi_in[3],1'b0},  // Green
+    {1'b0,spi_in[3],1'b0}   // Red
   } | {
-    {1'b0,spi_in[2],1'b0}, // Blue
-    {1'b0,spi_in[1],1'b0}, // Green
-    {1'b0,spi_in[0],1'b0}, // Red
+    {1'b0,spi_in[2],1'b0},  // Blue
+    {1'b0,spi_in[1],1'b0},  // Green
+    {1'b0,spi_in[0],1'b0}   // Red
   } << spi_in[3];
 
   wire `RGB pixel_color =
