@@ -32,6 +32,7 @@ module de0nano_top(
   // If switched to "ON", SW[0] is pulled LOW: selects vga_mode 0 (640x480).
   // If switched off, SW[0] is pulled HIGH: selects vga_mode 1 (1440x900).
   wire vga_mode = SW[0];
+  wire reg_outs = SW[1];
 
   // K4..K1 external buttons board (K4 is top, K1 is bottom):
   //NOTE: These buttons are active LOW, so we invert them here to make them active HIGH:
@@ -69,18 +70,18 @@ module de0nano_top(
   assign gpio1[  4] = 1'bz;
   assign gpio1[  6] = 1'bz;
 
-  // RGB:
-  wire `RGB rgb;
+  // RGB333:
+  wire [8:0] rgb;
   // Red:
-  assign gpio1[  3] = rgb[0];
+  assign gpio1[  3] = rgb[0]; // Unused in this design.
   assign gpio1[  1] = rgb[1];
   assign gpio1[  0] = rgb[2];
   // Green:
-  assign gpio1[ 13] = rgb[3];
+  assign gpio1[ 13] = rgb[3]; // Unused in this design.
   assign gpio1[ 11] = rgb[4];
   assign gpio1[  9] = rgb[5];
   // Blue:
-  assign gpio1[ 12] = rgb[6];
+  assign gpio1[ 12] = rgb[6]; // Unused in this design.
   assign gpio1[ 10] = rgb[7];
   assign gpio1[  8] = rgb[8];
 
@@ -90,11 +91,48 @@ module de0nano_top(
   assign gpio1[  7] = hsync;
 
   // My SPI flash ROM chip is wired up to my DE0-Nano as follows:
-  wire spi_cs_n, spi_sclk, spi_mosi, spi_miso;
+  /*
+
+                           +-----+-----+
+      (ROM pin 6) SCLK  40 |io33 |io32 | 39  N/C
+                           +-----+-----+
+                   N/C  38 |io31 |io30 | 37  io3 (ROM pin 7)
+                           +-----+-----+
+      (ROM pin 3)  io2  36 |io29 |io28 | 35  io0 (ROM pin 5) (MOSI)
+                           +-----+-----+
+                   N/C  34 |io27 |io26 | 33  io1 (ROM pin 2) (MISO)
+                           +-----+-----+
+      (ROM pin 1)  /CS  32 |io25 |io24 | 31  N/C
+                           +-----+-----+
+      (ROM pin 4)  GND  30 | GND |3.3V | 29  VCC (ROM pin 8)
+                           +-----+-----+
+                           |     |     |
+
+  Thus, gpio1 mapping to SPI flash ROM is as follows:
+
+  | gpio1 pin | gpio1[x]  | ROM pin | Function   |
+  |----------:|----------:|--------:|------------|
+  |     29    |    VCC3P3 |       8 | VCC3P3     |
+  |     30    |       GND |       4 | GND        |
+  |     31    | gpio1[24] |   (n/c) |            |
+  |     32    | gpio1[25] |       1 | /CS        |
+  |     33    | gpio1[26] |       2 | io1 (MISO) |
+  |     34    | gpio1[27] |   (n/c) |            |
+  |     35    | gpio1[28] |       5 | io0 (MOSI) |
+  |     36    | gpio1[29] |       3 | io2        |
+  |     37    | gpio1[30] |       7 | io3        |
+  |     38    | gpio1[31] |   (n/c) |            |
+  |     39    | gpio1[32] |   (n/c) |            |
+  |     40    | gpio1[33] |       6 | SCLK       |
+
+  */
+  // Inputs (signals the memory chip sends to us in quad mode):
+  wire [3:0] spi_in = {gpio1[30], gpio1[29], gpio1[26], gpio1[28]};
+  // Outputs that our DUT sends to the memory chip:
+  wire spi_cs_n, spi_sclk, spi_out0, spi_dir0;
   assign gpio1[33] = spi_sclk;
-  assign gpio1[31] = spi_cs_n;
-  assign gpio1[29] = spi_mosi;
-  assign spi_miso  = gpio1[27];
+  assign gpio1[25] = spi_cs_n;
+  assign gpio1[28] = (spi_dir0==0) ? spi_out0 : 1'bz; // When dir0==1, gpio1[28] becomes an input, feeding spi_in[0].
 
   // // CLOCK_50 output on GPIO1 pin 39 (io32, aka GPIO_132):
   // assign gpio1[ 32] = CLOCK_50;
@@ -104,17 +142,30 @@ module de0nano_top(
   // assign {gpio1[26], gpio1[28], gpio1[30]} = div_clocks;
 
   // These are not specifically being tested at this stage:
-  wire [4:0]  TestA = 5'b11111;
-  wire        TestB = 1'b0;
-  wire        TestA_out, TestB_out; // These go nowhere for now.
+  wire [2:0]  Test_in = 3'b111;
+  wire        Test_out; // This goes nowhere for now.
 
+  wire [7:0] uio_oe;
+  assign LED = uio_oe;
+  assign spi_dir0 = ~uio_oe[1]; // For TT, 1=Output. We want 0=Output (so it's inverted).
+
+  // Low bits of each RGB333 colour channel are not used by this design:
+  assign {rgb[6], rgb[3], rgb[0]} = 0;
+
+  wire [1:0] dummy1 = 0;
+  wire [2:0] dummy2;
+  wire dummy3;
+
+  wire spi_rst_pin_mode = 1'b0;
+
+  // spi_in[3:1]
   // This is the TT05 submission TOP that we're testing:
   tt_um_algofoogle_vga_spi_rom dut (
-    .ui_in    ({TestB, TestA, vga_mode, spi_miso}),
-    .uo_out   ({rgb[8:7], rgb[5:4], rgb[2:1], vsync, hsync}),
-    .uio_in   (8'b0), // UNUSED.
-    .uio_out  ({TestB_out, TestA_out, rgb[6], rgb[3], rgb[0], spi_mosi, spi_sclk, spi_cs_n}),
-    .uio_oe   (LED),  // Connect these to DE0-Nano's LEDs. 1=LED lit.
+    .ui_in    ({Test_in, dummy1[1:0], reg_outs, spi_rst_pin_mode, vga_mode}),
+    .uo_out   ({hsync, rgb[7], rgb[4], rgb[1], vsync, rgb[8], rgb[5], rgb[2]}),
+    .uio_in   ({spi_in[3:2], 3'b000, spi_in[1:0], 1'b0}),
+    .uio_out  ({dummy2[2:0], Test_out, spi_sclk, dummy3, spi_out0, spi_cs_n}),
+    .uio_oe   (uio_oe),  // oe[1] sets dir for SPI io[0]. These are all also connected to DE0-Nano's LEDs. 1=LED lit.
     .ena      (1'b1),
     .clk      (pixel_clock),
     .rst_n    (rst_n)
