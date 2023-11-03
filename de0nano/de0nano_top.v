@@ -69,18 +69,18 @@ module de0nano_top(
   assign gpio1[  4] = 1'bz;
   assign gpio1[  6] = 1'bz;
 
-  // RGB:
-  wire `RGB rgb;
+  // RGB333:
+  wire [8:0] rgb;
   // Red:
-  assign gpio1[  3] = rgb[0];
+  assign gpio1[  3] = rgb[0]; // Unused in this design.
   assign gpio1[  1] = rgb[1];
   assign gpio1[  0] = rgb[2];
   // Green:
-  assign gpio1[ 13] = rgb[3];
+  assign gpio1[ 13] = rgb[3]; // Unused in this design.
   assign gpio1[ 11] = rgb[4];
   assign gpio1[  9] = rgb[5];
   // Blue:
-  assign gpio1[ 12] = rgb[6];
+  assign gpio1[ 12] = rgb[6]; // Unused in this design.
   assign gpio1[ 10] = rgb[7];
   assign gpio1[  8] = rgb[8];
 
@@ -141,21 +141,30 @@ module de0nano_top(
   // assign {gpio1[26], gpio1[28], gpio1[30]} = div_clocks;
 
   // These are not specifically being tested at this stage:
-  wire [2:0]  TestA = 3'b111;
-  wire        TestB = 1'b0;
-  wire        TestA_out, TestB_out; // These go nowhere for now.
+  wire [2:0]  Test_in = 3'b111;
+  wire        Test_out; // This goes nowhere for now.
 
   wire [7:0] uio_oe;
   assign LED = uio_oe;
-  assign spi_dir0 = ~uio_oe[2]; // For TT, 1=Output. We want 0=Output (so it's inverted).
+  assign spi_dir0 = ~uio_oe[1]; // For TT, 1=Output. We want 0=Output (so it's inverted).
 
+  // Low bits of each RGB333 colour channel are not used by this design:
+  assign {rgb[6], rgb[3], rgb[0]} = 0;
+
+  wire [2:0] dummy1 = 0;
+  wire [2:0] dummy2;
+  wire dummy3;
+
+  wire spi_rst_pin_mode = 1'b0;
+
+  // spi_in[3:1]
   // This is the TT05 submission TOP that we're testing:
   tt_um_algofoogle_vga_spi_rom dut (
-    .ui_in    ({TestB, TestA, vga_mode, spi_in[3:1]}),
-    .uo_out   ({rgb[8:7], rgb[5:4], rgb[2:1], vsync, hsync}),
-    .uio_in   ({5'b00000, spi_in[0], 2'b00}), // Only uio_in[2] is used as an input, SOMETIMES.
-    .uio_out  ({TestB_out, TestA_out, rgb[6], rgb[3], rgb[0], spi_out0, spi_sclk, spi_cs_n}),
-    .uio_oe   (uio_oe),  // oe[2] sets dir for SPI io[0]. Rest are always outputs. These are all also connected to DE0-Nano's LEDs. 1=LED lit.
+    .ui_in    ({Test_in, dummy1[2:0], spi_rst_pin_mode, vga_mode}),
+    .uo_out   ({hsync, rgb[7], rgb[4], rgb[1], vsync, rgb[8], rgb[5], rgb[2]}),
+    .uio_in   ({spi_in[3:2], 3'b000, spi_in[1:0], 1'b0}),
+    .uio_out  ({dummy2[2:0], Test_out, spi_sclk, dummy3, spi_out0, spi_cs_n}),
+    .uio_oe   (uio_oe),  // oe[1] sets dir for SPI io[0]. These are all also connected to DE0-Nano's LEDs. 1=LED lit.
     .ena      (1'b1),
     .clk      (pixel_clock),
     .rst_n    (rst_n)

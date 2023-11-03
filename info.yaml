@@ -101,41 +101,40 @@ documentation:
         `red`, `green`, and `blue`, each via a 1k&ohm; resistor, to their respective VGA colour
         channel input pins. It might be pretty dark, but should be safe on Caravel IO pins if you
         don't otherwise buffer them.
-    *   For a much better display, use at least an RGB222 (upper 2 bits per channel) or RGB333 DAC
-        (all 3 bits per channel), ensuring it buffers each of those digital outputs.
+    *   For a much better display, use an RGB222 (upper 2 bits per channel), ensuring it buffers each of
+        those digital outputs. A good option is Tiny VGA (see: https://tinytapeout.com/specs/pinouts/)
 
   inputs:
-    - 'In: SPI io[1] / MISO'
-    - 'In: SPI io[2]'
-    - 'In: SPI io[3]'
     - 'In: vga_mode'
-    - 'In: TestA[0]'
-    - 'In: TestA[1]'
-    - 'In: TestA[2]'
-    - 'In: TestB'
+    - 'In: rst_mode'
+    - 'In: N/C'
+    - 'In: N/C'
+    - 'In: N/C'
+    - 'In: Test_in[0]'
+    - 'In: Test_in[1]'
+    - 'In: Test_in[2]'
   outputs:
-    # These match my tt04-raybox-zero design (https://app.tinytapeout.com/projects/136)
-    - 'Out: hsync'
-    - 'Out: vsync'
     - 'Out: red[1]'
-    - 'Out: red[2]'
     - 'Out: green[1]'
-    - 'Out: green[2]'
     - 'Out: blue[1]'
-    - 'Out: blue[2]'
-  bidirectional:
-    - 'Out: SPI /CS'
-    - 'Out: SPI SCLK'
-    - 'Out: SPI io[0] / MOSI'
+    - 'Out: vsync'
     - 'Out: red[0]'
     - 'Out: green[0]'
     - 'Out: blue[0]'
-    - 'Out: TestA_out'
-    - 'Out: TestB_out'
+    - 'Out: hsync'
+  bidirectional:
+    - 'Out: SPI /CS'
+    - 'Out: SPI io[0] / MOSI'
+    - 'Out: SPI io[1] / MISO'
+    - 'Out: SPI SCLK'
+    - 'Out: Test_out'
+    - 'Out: SPI /RST'
+    - 'Out: SPI io[2] (/WP)'
+    - 'Out: SPI io[3] (/HLD)'
 
 # The following fields are optional
   tag:          "test, experiment, spi, qspi, vga"
-  external_hw:  "VGA DAC (RGB111, 222, or 333-depth) and SPI flash memory"
+  external_hw:  "VGA DAC (RGB111 or 222 depth) and SPI flash memory"
   discord:      "algofoogle"
   doc_link:     "https://github.com/algofoogle/tt05-vga-spi-rom"
   clock_hz:     "25.0MHz, 25.175MHz, or 26.6175MHz"

@@ -202,23 +202,17 @@ module vga_spi_rom(
                   spi_in[1];                // ...chip, in direct mode.
 
   // In quad mode, spi_in[2:0] drive base BGR color, while io[3] shifts for intensity:
-  wire `RGB quad_color = 
-  {
-    {1'b0,spi_in[3],1'b0},  // Blue
-    {1'b0,spi_in[3],1'b0},  // Green
-    {1'b0,spi_in[3],1'b0}   // Red
-  } | {
-    {1'b0,spi_in[2],1'b0},  // Blue
-    {1'b0,spi_in[1],1'b0},  // Green
-    {1'b0,spi_in[0],1'b0}   // Red
-  } << spi_in[3];
+  wire `RGB quad_color =
+    // Blue             // Green          // Red
+    ({{1'b0,spi_in[2]}, {1'b0,spi_in[1]}, {1'b0,spi_in[0]} } << spi_in[3]) | // io[3] shifts for intensity
+    ({{1'b0,spi_in[3]}, {1'b0,spi_in[3]}, {1'b0,spi_in[3]} }); // io[3] then also adds for extra intensity
 
   wire `RGB pixel_color =
     // Force green pixels during MOSI being driven high:
-    (spi_out0 && 0==spi_dir0) ? 9'b000_111_000:
+    (spi_out0 && 0==spi_dir0) ? 6'b00_11_00:
     quad                      ? quad_color:
     // Else, B=/CS, G=data, R=odd/even byte.
-                                { {3{spi_cs}}, {3{data}}, {3{~odd_byte}} };
+                                { {2{spi_cs}}, {2{data}}, {2{~odd_byte}} };
 
   // Dividing lines are blacked out, i.e. first line of each address line pair,
   // because they contain buffer junk, but also to make it easier to see pairs:
@@ -226,8 +220,8 @@ module vga_spi_rom(
 
   // Decide what the final RGB pixel output colour is:
   assign rgb =
-    (!visible)      ? 9'b000_000_000: // Black for blanking.
-    (dividing_line) ? 9'b000_000_000: // Black for dividing lines.
+    (!visible)      ? 6'b00_00_00: // Black for blanking.
+    (dividing_line) ? 6'b00_00_00: // Black for dividing lines.
                       pixel_color;
   
 endmodule
