@@ -79,9 +79,15 @@ module tt_um_algofoogle_vga_spi_rom (
   reg `RGB r_rgb;
   reg r_hsync, r_vsync;
   always @(posedge clk) begin
-    r_rgb <= rgb;
-    r_hsync <= hsync;
-    r_vsync <= vsync;
+    if (reset) begin
+      r_rgb <= 0;
+      r_hsync <= 0;
+      r_vsync <= 0;
+    end else begin
+      r_rgb <= rgb;
+      r_hsync <= hsync;
+      r_vsync <= vsync;
+    end
   end
 
   // Red:

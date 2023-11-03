@@ -6,13 +6,12 @@ from cocotb.triggers import Timer, ClockCycles
 # Make sure all bidir pins are configured as outputs
 # (as they should always be, for this design):
 def check_uio_out(dut):
-    assert dut.uio_oe.value == 0b11111111
+    assert dut.uio_oe.value == 0b00011011
 
 # This can represent hard-wired stuff:
 def set_default_start_state(dut):
     dut.ena.value = 1
-    dut.TestA.value = 1
-    dut.TestB.value = 1
+    dut.Test_in.value = 1
 
 @cocotb.test()
 async def test_basic_waveform_dump(dut):

@@ -13,8 +13,7 @@ module tb;
     reg clk;
     reg rst_n;
     reg ena;
-    reg [5:0] TestA;
-    reg TestB;
+    reg [2:0] Test_in;
 
     // --- DUT's generic IOs from the TT wrapper ---
     wire [7:0] ui_in;       // Dedicated inputs
@@ -27,27 +26,25 @@ module tb;
 
     // SPI connected to our spiflash sim module:
     wire spi_cs_n = uio_out[0];
-    wire spi_sclk = uio_out[1];
-    wire spi_mosi = uio_out[2];
+    wire spi_sclk = uio_out[3];
+    wire spi_mosi = uio_out[1];
     wire spi_miso;
-    assign ui_in[0] = spi_miso;
+    assign uio_in[2] = spi_miso;
 
-    wire hsync_n = uo_out[0];
-    wire vsync_n = uo_out[1];
+    wire vsync_n = uo_out[3];
+    wire hsync_n = uo_out[7];
 
     // Each of the 3-bit R, G, and B outputs:
-    wire [2:0] r = {uo_out[3:2], uio_out[3]};
-    wire [2:0] g = {uo_out[5:4], uio_out[4]};
-    wire [2:0] b = {uo_out[7:6], uio_out[5]};
+    wire [1:0] r = {uo_out[0], uo_out[4]};
+    wire [1:0] g = {uo_out[1], uo_out[5]};
+    wire [1:0] b = {uo_out[2], uo_out[6]};
 
-    // Combined RGB333 output (BGR order):
-    wire [8:0] rgb = {b,g,r};
+    // Combined RGB222 output (BGR order):
+    wire [5:0] rgb = {b,g,r};
 
     // Simple gate delay test:
-    assign ui_in[6:1] = TestA;
-    assign ui_in[7] = TestB;
-    wire TestA_out = uio_out[6];
-    wire TestB_out = uio_out[7];
+    assign ui_in[7:5] = Test_in;
+    wire Test_out = uio_out[4];
 
     // This is the TT05-wrapped main design that we're testing:
     tt_um_algofoogle_vga_spi_rom uut (
