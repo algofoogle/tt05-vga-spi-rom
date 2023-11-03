@@ -6,7 +6,8 @@
 // ui_in: Dedicated inputs:
 //  ui_in   [0]: vga_mode select: 0=640x480@60Hz, 1=1440x900@60Hz
 //  ui_in   [1]: SPI /RST mode select: 1=(assert 1 on SPI /RST); 0=(make SPI /RST an input)
-//  ui_in   [4:2]: (UNUSED)
+//  ui_in   [2]: Un/Registered outs: 0=unregistered; 1=registered
+//  ui_in   [4:3]: (UNUSED)
 //  ui_in   [7:5]: Test_in[2:0] - 3-input AND gate (outputs to Test_out)
 //
 // uo_out: Dedicated outputs:
@@ -60,6 +61,10 @@ module tt_um_algofoogle_vga_spi_rom (
 
   assign uio_out[5] = 1'b1; // IF ui_in[1] says this should be asserted as an output, then output 1 (to disable SPI /RST).
 
+  // These are not used as outputs:
+  assign uio_out[7:6] = 0;
+  assign uio_out[2] = 0;
+
   // Make a big AND to use up the remaining ui_in pins:
   assign uio_out[4] = &ui_in[7:5];
 
@@ -67,12 +72,24 @@ module tt_um_algofoogle_vga_spi_rom (
   // The 2 bits of each channel (going out via uo_out) are intended to
   // match the Tiny VGA Pmod: https://tinytapeout.com/specs/pinouts/
   wire `RGB rgb;
+
+  wire reg_outs = ui_in[2];
+
+  // Registered versions of outputs:
+  reg `RGB r_rgb;
+  reg r_hsync, r_vsync;
+  always @(posedge clk) begin
+    r_rgb <= rgb;
+    r_hsync <= hsync;
+    r_vsync <= vsync;
+  end
+
   // Red:
-  assign {uo_out[0], uo_out[4]} = rgb[1:0];
+  assign {uo_out[0], uo_out[4]} = reg_outs ? r_rgb[1:0] : rgb[1:0];
   // Green:
-  assign {uo_out[1], uo_out[5]} = rgb[3:2];
+  assign {uo_out[1], uo_out[5]} = reg_outs ? r_rgb[3:2] : rgb[3:2];
   // Blue:
-  assign {uo_out[2], uo_out[6]} = rgb[5:4];
+  assign {uo_out[2], uo_out[6]} = reg_outs ? r_rgb[5:4] : rgb[5:4];
 
   // VGA mode selection: 0=640x480@60Hz, 1=1440x900@60Hz
   wire vga_mode = ui_in[0];
@@ -80,9 +97,9 @@ module tt_um_algofoogle_vga_spi_rom (
   // VGA sync outputs (polarity of each matches whatever vga_mode requires):
   wire vsync, hsync;
   // VSYNC:
-  assign uo_out[3] = vsync;
+  assign uo_out[3] = reg_outs ? r_vsync : vsync;
   // HSYNC:
-  assign uo_out[7] = hsync;
+  assign uo_out[7] = reg_outs ? r_hsync : hsync;
 
   // SPI memory I/O...
   wire [3:0] spi_in;

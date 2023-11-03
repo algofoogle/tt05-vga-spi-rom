@@ -58,17 +58,20 @@ documentation:
     mode because the MISO output data appears on the *falling* SCLK edge.
     At 1440x900, this should be apparent.
 
+    The `reg_outs` signal, if HIGH, specifies that the VGA output signals should be
+    registered. If LOW, the raw outputs go directly to the VGA display (inc. directly
+    from the SPI memory when not in a buffered line).
+
     NOTE: This tries to use `!CLK` (main clock, inverted) to drive the SPI SCLK directly,
     so that we don't need a *faster* system CLK in order to manage extra states. It keeps
     this `SCLK` output running constantly, relying on `/CS`.
 
-    NOTE: Besides the main design, I've got simple loopback tests:
+    NOTE: Besides the main design, I've got simple loopback test:
 
-    *   `TestA[4:0]` feeds a 5-input logical `AND` which outputs to `TestA_out`
-    *   `TestB` feeds directly to `TestB_out`
+    *   `Test_in[2:0]` feeds a 3-input logical `AND` which outputs to `Test_out`
 
     It could be interesting, when we get the actual chip back, to compare inputs to outputs
-    on an oscilloscope when sending signals into `TestA` and `TestB`, and also try chaining them.
+    on an oscilloscope.
 
     NOTE: The sync polarity of `hsync` and `vsync` will be determined by vga_mode.
 
@@ -107,7 +110,7 @@ documentation:
   inputs:
     - 'In: vga_mode'
     - 'In: rst_mode'
-    - 'In: N/C'
+    - 'In: reg_outs'
     - 'In: N/C'
     - 'In: N/C'
     - 'In: Test_in[0]'

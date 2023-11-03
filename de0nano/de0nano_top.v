@@ -32,6 +32,7 @@ module de0nano_top(
   // If switched to "ON", SW[0] is pulled LOW: selects vga_mode 0 (640x480).
   // If switched off, SW[0] is pulled HIGH: selects vga_mode 1 (1440x900).
   wire vga_mode = SW[0];
+  wire reg_outs = SW[1];
 
   // K4..K1 external buttons board (K4 is top, K1 is bottom):
   //NOTE: These buttons are active LOW, so we invert them here to make them active HIGH:
@@ -151,7 +152,7 @@ module de0nano_top(
   // Low bits of each RGB333 colour channel are not used by this design:
   assign {rgb[6], rgb[3], rgb[0]} = 0;
 
-  wire [2:0] dummy1 = 0;
+  wire [1:0] dummy1 = 0;
   wire [2:0] dummy2;
   wire dummy3;
 
@@ -160,7 +161,7 @@ module de0nano_top(
   // spi_in[3:1]
   // This is the TT05 submission TOP that we're testing:
   tt_um_algofoogle_vga_spi_rom dut (
-    .ui_in    ({Test_in, dummy1[2:0], spi_rst_pin_mode, vga_mode}),
+    .ui_in    ({Test_in, dummy1[1:0], reg_outs, spi_rst_pin_mode, vga_mode}),
     .uo_out   ({hsync, rgb[7], rgb[4], rgb[1], vsync, rgb[8], rgb[5], rgb[2]}),
     .uio_in   ({spi_in[3:2], 3'b000, spi_in[1:0], 1'b0}),
     .uio_out  ({dummy2[2:0], Test_out, spi_sclk, dummy3, spi_out0, spi_cs_n}),
